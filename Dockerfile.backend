@@ -1,37 +1,32 @@
-# Dockerfile.backend
 FROM python:3.11-slim-buster
 WORKDIR /app
 
 # Install build dependencies for psycopg2 AND curl
-RUN apt-get update && \
+RUN apt-get update --fix-missing && \
     apt-get install -y \
     gcc \
     libpq-dev \
-    curl \  # <--- ADD CURL HERE
-    && rm -rf /var/lib/apt/lists/*
+    curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# If you encounter other compilation errors, you might need 'build-essential'
+# RUN apt-get install -y build-essential
 
 # Install Poetry and configure it in the same RUN command
-# curl will now be available
 RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python - && \
     /opt/poetry/bin/poetry config virtualenvs.in-project true
 
-# CRITICAL FIX: Ensure this ENV PATH is immediately after Poetry installation
-# and before any subsequent 'poetry' commands.
 ENV PATH="/opt/poetry/bin:$PATH"
 
 # Copy project files for dependency installation
 COPY poetry.lock pyproject.toml ./
 
 # Install dependencies
-RUN poetry install --no-root --without dev
+RUN poetry install --no-root
 
-# Copy the password generation script and make it executable
-COPY generate_db_password.sh /usr/local/bin/generate_db_password.sh
-RUN chmod +x /usr/local/bin/generate_db_password.sh
 
 # Copy the rest of your application code
 COPY . .
 
-# Set Entrypoint and Command
 ENTRYPOINT ["/usr/local/bin/generate_db_password.sh"]
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
