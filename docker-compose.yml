@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - .env:/app/.env
+    environment:
+      DATABASE_URL: ${DATABASE_URL}
+    restart: always
+
+  frontend:
+    build:
+      context: ./frontend-app
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "80:80"
+    restart: always
+    depends_on:
+      - backend

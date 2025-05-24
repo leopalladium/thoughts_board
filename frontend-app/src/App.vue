@@ -224,28 +224,27 @@ onUnmounted(() => {
           @keydown="onTextareaKeydown"
           class="resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-200 shadow space-mono"
         ></textarea>
-        <div class="flex gap-2">
+        <div class="flex gap-2 w-full">
           <button
             type="submit"
             :disabled="isLoading"
-            class="rounded-xl bg-gradient-to-r from-indigo-400 to-indigo-200 text-white font-bold py-2.5 px-4 shadow hover:from-indigo-500 transition disabled:opacity-60 space-mono"
+            class="rounded-xl bg-gradient-to-r from-indigo-400 to-indigo-200 text-white font-bold py-2.5 px-6 shadow hover:from-indigo-500 transition disabled:opacity-60 space-mono flex-1"
+            style="min-width: 0;"
           >
             {{ isLoading ? '...' : 'send' }}
           </button>
           <button
-            type="button"
             @click="fetchThoughts"
             :disabled="isLoading"
-            class="rounded-xl bg-gradient-to-r from-indigo-200 to-indigo-400 text-white font-bold py-2.5 px-4 shadow hover:from-indigo-300 transition disabled:opacity-60 space-mono flex items-center justify-center"
+            class="rounded-xl bg-gradient-to-r from-indigo-200 to-indigo-400 text-white font-bold p-0 flex items-center justify-center shadow hover:from-indigo-300 transition disabled:opacity-60 space-mono"
             title="refresh"
+            type="button"
+            style="width:48px; min-width:48px; height:48px;"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="#e3e3e3"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>
+            <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#e3e3e3"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>
           </button>
         </div>
       </form>
-      <div class="flex gap-2 mt-2">
-        <span v-if="isLoading" class="text-xs text-gray-400 self-center space-mono">loading...</span>
-      </div>
       <div v-if="error" class="text-red-600 text-center mt-4 text-base space-mono">
         <small>{{ error }}</small>
       </div>
@@ -271,7 +270,7 @@ onUnmounted(() => {
       style="overflow: hidden;"
     >
       <div
-        class="absolute top-0 left-0 w-full h-full canvas-pan-area"
+        class="absolute top-0 left-0 w-full h-full"
         style="overflow: visible; cursor: grab;"
         :style="{
           transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})`,
@@ -374,20 +373,44 @@ body {
   font-family: 'Space Mono', monospace !important;
 }
 
-/* Расширяем область захвата для drag&pan по краям холста */
-.canvas-pan-area {
-  position: absolute;
-  top: 0; left: 0; width: 100%; height: 100%;
+/* Кнопки в строке, разные размеры */
+button[type="submit"] {
+  /* send */
+  min-width: 110px;
+  padding-left: 1.5rem;
+  padding-right: 1.5rem;
 }
-.canvas-pan-area::before {
-  content: "";
-  position: absolute;
-  z-index: 1;
-  top: -64px; left: -64px; right: -64px; bottom: -64px;
-  /* Невидимая, но ловит мышь */
-  background: transparent;
-  pointer-events: auto;
+button[title="refresh"] {
+  /* refresh */
+  min-width: 48px;
+  min-height: 48px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
+
+/* Кнопки в строке, разные размеры и адаптивное заполнение */
+form .flex.gap-2.w-full {
+  width: 100%;
+}
+form .flex.gap-2.w-full > button[type="submit"] {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+form .flex.gap-2.w-full > button[title="refresh"] {
+  flex: 0 0 auto;
+  width: 48px;
+  min-width: 48px;
+  height: 48px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 </style>
 
 <style>
