@@ -1,3 +1,4 @@
+# leopalladium/thoughts_board/thoughts_board-b58e087bb544fc831102b75eeecf0ec1b7f252bf/main.py
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from pydantic import BaseModel
@@ -7,6 +8,7 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
+
 # Загружаем переменные окружения из .env файла
 # Это нужно сделать до того, как DATABASE_URL будет прочитан
 load_dotenv()
@@ -27,12 +29,25 @@ class ThoughtRead(ThoughtBase): # Схема для чтения
     created_at: datetime
 
 # ---- Настройка базы данных ----
-DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not DATABASE_URL:
-    print("Ошибка: Переменная окружения DATABASE_URL не найдена!")
-    print("Пожалуйста, создайте файл .env и укажите в нем DATABASE_URL.")
-    exit() # Выход, если URL не задан
+# Читаем отдельные компоненты URL из переменных окружения
+# Если их нет в .env, можно задать значения по умолчанию
+DB_USER = os.getenv("DB_USER", "leopalladium")
+DB_PASSWORD = os.getenv("DB_PASSWORD") # Это будет генерироваться скриптом
+DB_HOST = os.getenv("DB_HOST", "db") # Имя сервиса Docker Compose
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_NAME = os.getenv("DB_NAME", "thoughts_db")
+
+# Конструируем DATABASE_URL самостоятельно
+if not DB_PASSWORD:
+    print("Ошибка: Переменная окружения DB_PASSWORD не найдена!")
+    print("Пожалуйста, убедитесь, что скрипт generate_db_password.sh был запущен.")
+    exit() # Выход, если пароль не задан
+
+# Формируем строку подключения
+DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+
+print(f"Используемый DATABASE_URL (без пароля): postgresql+psycopg2://{DB_USER}:*****@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 
 engine = create_engine(DATABASE_URL, echo=True) # echo=True для логгирования SQL запросов
 

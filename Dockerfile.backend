@@ -12,7 +12,8 @@ RUN apt-get update && \
 
 WORKDIR /app
 
-RUN pip install poetry
+RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python -
+ENV PATH="/opt/poetry/bin:$PATH"
 
 # Configure Poetry to create virtualenvs inside the project directory (.venv folder)
 RUN poetry config virtualenvs.in-project true
@@ -21,8 +22,12 @@ COPY poetry.lock pyproject.toml /app/
 
 RUN poetry install --no-root
 
+COPY generate_db_password.sh /usr/local/bin/generate_db_password.sh
+RUN chmod +x /usr/local/bin/generate_db_password.sh
+
 COPY . /app
 
-EXPOSE 8000
+# Устанавливаем entrypoint, который будет запускать наш скрипт
+ENTRYPOINT ["/usr/local/bin/generate_db_password.sh"]
 
 CMD ["/app/.venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]

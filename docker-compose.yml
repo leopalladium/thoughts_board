@@ -1,21 +1,50 @@
+# leopalladium/thoughts_board/thoughts_board-b58e087bb544fc831102b75eeecf0ec1b7f252bf/docker-compose.yml
 services:
   backend:
     build:
       context: .
       dockerfile: Dockerfile.backend
-    ports:
-      - "8000:8000"
+    # ports: # УДАЛЕНО: Nginx на хосте проксирует
+    #  - "8000:8000"
     volumes:
-      - .env:/app/.env
+      - ./.env:/app/.env # Монтируем .env файл в контейнер, чтобы main.py мог его читать
     environment:
-      DATABASE_URL: ${DATABASE_URL}
+      # Эти переменные будут переданы в контейнер из .env
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
     restart: always
+    depends_on:
+      - db
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   frontend:
     build:
       context: ./frontend-app
       dockerfile: Dockerfile.frontend
+    # ports: # УДАЛЕНО: Nginx на хосте проксирует
+    #   - "80:5173"
     restart: always
     depends_on:
       - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
+  db:
+    image: postgres:16-alpine
+    environment:
+      # Эти переменные также будут подхвачены из .env
+      POSTGRES_DB: ${DB_NAME}
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    # ports: # Опционально: пробрасывает порт БД на хост для доступа с хоста
+    #   - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  db_data:
