@@ -1,23 +1,26 @@
-# Use an official Python runtime as a parent image
+# Dockerfile.backend
 FROM python:3.11-slim-buster
 
-# Set the working directory in the container
+# Install PostgreSQL client libraries and other build essentials
+# These are required for psycopg2 to compile
+RUN apt-get update && \
+    apt-get install -y \
+    gcc \
+    libpq-dev \
+    # If you encounter other compilation errors, you might need 'build-essential'
+    # build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
-# Install poetry
 RUN pip install poetry
 
-# Copy only poetry.lock and pyproject.toml first to leverage Docker cache
 COPY poetry.lock pyproject.toml /app/
 
-# Install dependencies using poetry
-RUN poetry install --no-root --no-dev
+RUN poetry install --no-root
 
-# Copy the rest of the application code
 COPY . /app
 
-# Expose port 8000 for the FastAPI application
 EXPOSE 8000
 
-# Run the FastAPI application using Uvicorn
-CMD ["poetry", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
