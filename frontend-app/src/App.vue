@@ -1,230 +1,400 @@
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, onMounted, nextTick, onUnmounted } from 'vue';
 import axios from 'axios';
 
-// URL нашего FastAPI бэкенда
-// Убедитесь, что ваш FastAPI сервер запущен (обычно на http://127.0.0.1:8000)
+// --- State ---
+const thoughts = ref([]);
+const newThought = ref('');
+const error = ref('');
+const isLoading = ref(false);
+
+// Холст и панорамирование/зум
+const canvasRef = ref(null);
+const sidebarWidth = 370;
+const zoom = ref(1);
+const pan = reactive({ x: 0, y: 0 });
+const draggingCanvas = ref(false);
+const dragStart = reactive({ x: 0, y: 0 });
+const panStart = reactive({ x: 0, y: 0 });
+
+// Позиции карточек
+const positions = reactive({});
+const draggingCardId = ref(null);
+const dragCardOffset = reactive({ x: 0, y: 0 });
+
 const backendUrl = 'http://127.0.0.1:8000';
 
-// Реактивные переменные
-const thoughts = ref([]); // Список мыслей
-const newThoughtContent = ref(''); // Содержимое новой мысли из поля ввода
-const isLoading = ref(false);
-const error = ref(null);
+// --- Utils ---
+function getRandomPosition() {
+  const padding = 60;
+  const w = window.innerWidth - sidebarWidth - 340 - padding;
+  const h = window.innerHeight - 180 - padding;
+  return {
+    x: Math.random() * w + sidebarWidth + padding / 2,
+    y: Math.random() * h + padding / 2,
+  };
+}
 
-// Функция для загрузки мыслей с бэкенда
+// --- API ---
 async function fetchThoughts() {
   isLoading.value = true;
-  error.value = null;
+  error.value = '';
   try {
     const response = await axios.get(`${backendUrl}/thoughts/`);
     thoughts.value = response.data;
-  } catch (err) {
-    console.error('Ошибка при загрузке мыслей:', err);
-    error.value = 'Не удалось загрузить мысли. Убедитесь, что бэкенд сервер запущен и доступен. ' + (err.message || '');
-    if (err.response) {
-      // Ошибка от сервера (например, 404, 500)
-      error.value += ` Статус: ${err.response.status}`;
-    } else if (err.request) {
-      // Запрос был сделан, но ответ не получен (например, бэкенд не доступен)
-      error.value += ' Бэкенд не отвечает.';
+    await nextTick();
+    for (const t of thoughts.value) {
+      if (!positions[t.id]) positions[t.id] = getRandomPosition();
     }
+  } catch (err) {
+    error.value = 'Ошибка загрузки мыслей';
   } finally {
     isLoading.value = false;
   }
 }
 
-// Функция для добавления новой мысли
 async function addThought() {
-  if (!newThoughtContent.value.trim()) {
-    alert('Мысль не может быть пустой!');
-    return;
-  }
+  if (!newThought.value.trim()) return;
   isLoading.value = true;
-  error.value = null;
+  error.value = '';
   try {
     const response = await axios.post(`${backendUrl}/thoughts/`, {
-      content: newThoughtContent.value
+      content: newThought.value
     });
-    thoughts.value.unshift(response.data); // Добавляем новую мысль в начало списка (оптимистичное обновление)
-    newThoughtContent.value = ''; // Очищаем поле ввода
-    await fetchThoughts(); // Перезагружаем список мыслей, чтобы увидеть все, включая новую
+    thoughts.value.push(response.data);
+    positions[response.data.id] = getRandomPosition();
+    newThought.value = '';
+    await nextTick();
+    scrollToLastThought();
   } catch (err) {
-    console.error('Ошибка при добавлении мысли:', err);
-    error.value = 'Не удалось добавить мысль. ' + (err.message || '');
-    if (err.response) {
-      error.value += ` Статус: ${err.response.status}`;
-      error.value += ` Статус: ${err.response.status}`;
-    } else if (err.request) {
-      error.value += ' Бэкенд не отвечает.';
-    }
+    error.value = 'Ошибка добавления мысли';
   } finally {
     isLoading.value = false;
   }
 }
 
-// Загружаем мысли при монтировании компонента
+function scrollToLastThought() {
+  const lastId = thoughts.value[thoughts.value.length - 1]?.id;
+  if (!lastId) return;
+  const el = document.getElementById('thought-' + lastId);
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+  }
+}
+
+// --- Card Drag ---
+function onCardMouseDown(e, id) {
+  draggingCardId.value = id;
+  const pos = positions[id];
+  dragCardOffset.x = e.clientX - pos.x;
+  dragCardOffset.y = e.clientY - pos.y;
+  window.addEventListener('mousemove', onCardMouseMove);
+  window.addEventListener('mouseup', onCardMouseUp);
+  document.body.style.userSelect = 'none';
+}
+function onCardMouseMove(e) {
+  if (draggingCardId.value !== null) {
+    const id = draggingCardId.value;
+    positions[id].x = (e.clientX - dragCardOffset.x);
+    positions[id].y = (e.clientY - dragCardOffset.y);
+
+    // --- Repulsion logic ---
+    const minDist = 140; // минимальное расстояние между центрами карточек
+    const repulseStrength = 0.18; // сила отталкивания
+
+    const thisPos = positions[id];
+    const thisRect = {
+      x: thisPos.x,
+      y: thisPos.y,
+      w: 320,
+      h: 120
+    };
+    for (const otherId in positions) {
+      if (otherId == id) continue;
+      const otherPos = positions[otherId];
+      const otherRect = {
+        x: otherPos.x,
+        y: otherPos.y,
+        w: 320,
+        h: 120
+      };
+      // Центры карточек
+      const cx1 = thisRect.x + thisRect.w / 2;
+      const cy1 = thisRect.y + thisRect.h / 2;
+      const cx2 = otherRect.x + otherRect.w / 2;
+      const cy2 = otherRect.y + otherRect.h / 2;
+      const dx = cx1 - cx2;
+      const dy = cy1 - cy2;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < minDist && dist > 1) {
+        // Смещаем другую карточку в сторону от текущей
+        const overlap = minDist - dist;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        positions[otherId].x -= nx * overlap * repulseStrength;
+        positions[otherId].y -= ny * overlap * repulseStrength;
+      }
+    }
+  }
+}
+function onCardMouseUp() {
+  draggingCardId.value = null;
+  window.removeEventListener('mousemove', onCardMouseMove);
+  window.removeEventListener('mouseup', onCardMouseUp);
+  document.body.style.userSelect = '';
+}
+
+// --- Canvas Drag ---
+function onCanvasMouseDown(e) {
+  // Не начинать drag, если клик по карточке
+  if (e.target.closest('article')) return;
+  draggingCanvas.value = true;
+  dragStart.x = e.clientX;
+  dragStart.y = e.clientY;
+  panStart.x = pan.x;
+  panStart.y = pan.y;
+  window.addEventListener('mousemove', onCanvasMouseMove);
+  window.addEventListener('mouseup', onCanvasMouseUp);
+  document.body.style.cursor = 'grabbing';
+}
+function onCanvasMouseMove(e) {
+  if (draggingCanvas.value) {
+    pan.x = panStart.x + (e.clientX - dragStart.x);
+    pan.y = panStart.y + (e.clientY - dragStart.y);
+  }
+}
+function onCanvasMouseUp() {
+  draggingCanvas.value = false;
+  window.removeEventListener('mousemove', onCanvasMouseMove);
+  window.removeEventListener('mouseup', onCanvasMouseUp);
+  document.body.style.cursor = '';
+}
+
+// --- Zoom ---
+function onCanvasWheel(e) {
+  if (e.ctrlKey || e.metaKey) return;
+  e.preventDefault();
+  const prevZoom = zoom.value;
+  let delta = e.deltaY < 0 ? 1.1 : 0.9;
+  let newZoom = Math.max(0.5, Math.min(2, zoom.value * delta));
+  const mouseX = e.clientX - sidebarWidth;
+  const mouseY = e.clientY;
+  const wx = (mouseX - pan.x) / zoom.value;
+  const wy = (mouseY - pan.y) / zoom.value;
+  pan.x -= (newZoom - prevZoom) * wx;
+  pan.y -= (newZoom - prevZoom) * wy;
+  zoom.value = newZoom;
+}
+
+// --- Enter to send ---
+function onTextareaKeydown(e) {
+  if (e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    addThought();
+  }
+}
+
+// --- Автообновление мыслей ---
+let refreshInterval = null;
 onMounted(() => {
   fetchThoughts();
+  refreshInterval = setInterval(fetchThoughts, 15000); // 15 секунд
 });
+onUnmounted(() => {
+  if (refreshInterval) clearInterval(refreshInterval);
+});
+
 </script>
 
 <template>
-  <div class="app-layout">
-
-    <header class="app-header">
-      <h1>Белый Холст Мыслей</h1>
-    </header>
-
-    <main class="thoughts-canvas"> {/* Наш "холст" */}
-      <transition-group name="thought-card-animation" tag="div" class="thoughts-grid">
-
-        <article v-for="thought in thoughts" :key="thought.id" class="thought-card">
-          <p>{{ thought.content }}</p>
-          <footer>
-            <small>{{ new Date(thought.created_at).toLocaleString() }}</small>
-          </footer>
-        </article>
-      </transition-group>
-      <p v-if="thoughts.length === 0 && !isLoading && !error" class="no-thoughts">
-        Пока мыслей нет. Напишите первую!
-      </p>
-      <p v-if="isLoading && thoughts.length === 0" class="loading-thoughts">Загрузка...</p>
-    </main>
-
-    <footer class="input-area">
-      <form @submit.prevent="addThought" class="thought-form">
+  <div class="flex h-screen w-screen overflow-hidden font-sans bg-gradient-to-br from-indigo-50 via-blue-50 to-white space-mono">
+    <!-- Sidebar -->
+    <aside class="w-[370px] min-w-[260px] max-w-full bg-white/90 border-r border-gray-200 shadow-lg flex flex-col px-8 py-8 z-20 fixed top-0 left-0 bottom-0 h-full">
+      <header class="mb-8 border-b border-gray-200 pb-3">
+        <h1 class="text-4xl font-extrabold text-indigo-700 leading-tight tracking-tight drop-shadow-sm select-none poiret lowercase">
+          you'll<br>never<br>read
+        </h1>
+      </header>
+      <form @submit.prevent="addThought" class="flex flex-col gap-4 mt-2">
         <textarea
-            v-model="newThoughtContent"
-            placeholder="Ваша мысль..."
-            rows="2"
-            required
+          v-model="newThought"
+          placeholder="your thought..."
+          rows="3"
+          required
+          @keydown="onTextareaKeydown"
+          class="resize-none rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 text-base text-gray-800 focus:outline-none focus:ring-2 focus:ring-indigo-200 shadow space-mono"
         ></textarea>
-        <button type="submit" :disabled="isLoading">
-          {{ isLoading ? '...' : 'Отправить' }}
-        </button>
+        <div class="flex gap-2">
+          <button
+            type="submit"
+            :disabled="isLoading"
+            class="rounded-xl bg-gradient-to-r from-indigo-400 to-indigo-200 text-white font-bold py-2.5 px-4 shadow hover:from-indigo-500 transition disabled:opacity-60 space-mono"
+          >
+            {{ isLoading ? '...' : 'send' }}
+          </button>
+          <button
+            type="button"
+            @click="fetchThoughts"
+            :disabled="isLoading"
+            class="rounded-xl bg-gradient-to-r from-indigo-200 to-indigo-400 text-white font-bold py-2.5 px-4 shadow hover:from-indigo-300 transition disabled:opacity-60 space-mono flex items-center justify-center"
+            title="refresh"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" height="22px" viewBox="0 -960 960 960" width="22px" fill="#e3e3e3"><path d="M480-160q-134 0-227-93t-93-227q0-134 93-227t227-93q69 0 132 28.5T720-690v-110h80v280H520v-80h168q-32-56-87.5-88T480-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h84q-28 106-114 173t-196 67Z"/></svg>
+          </button>
+        </div>
       </form>
-      <div v-if="error" class="error-message">
+      <div class="flex gap-2 mt-2">
+        <span v-if="isLoading" class="text-xs text-gray-400 self-center space-mono">loading...</span>
+      </div>
+      <div v-if="error" class="text-red-600 text-center mt-4 text-base space-mono">
         <small>{{ error }}</small>
       </div>
-    </footer>
+      <div class="mt-10 pt-4 border-t border-dashed border-gray-200 text-gray-400 text-sm leading-relaxed select-none space-mono">
+        <b>zoom:</b> mouse wheel<br>
+        <b>canvas panning:</b> lmb on the empty space<br>
+        <b>moving:</b> drad the cards <br>
+        <br>
+        <b>why?</b> for thoughts that can't be spoken directly, for messages that can't be sent. if you have something you need to say to someone, but the words won't reach them, share it here. this is a safe space for your true feelings. they'll never read it, but at least strangers will. <br>
 
+      </div>
+      <div class="mt-auto text-xs text-black pt-8 select-none space-mono">
+        &copy; {{ new Date().getFullYear() }} you'll never read<br>
+
+      </div>
+    </aside>
+    <!-- Canvas -->
+    <main
+      class="relative flex-1 h-screen overflow-hidden space-mono"
+      ref="canvasRef"
+      :style="{ width: `calc(100vw - ${sidebarWidth}px)` }"
+      @wheel.passive="onCanvasWheel"
+      style="overflow: hidden;"
+    >
+      <div
+        class="absolute top-0 left-0 w-full h-full canvas-pan-area"
+        style="overflow: visible; cursor: grab;"
+        :style="{
+          transform: `translate(${pan.x}px,${pan.y}px) scale(${zoom})`,
+          transformOrigin: '0 0'
+        }"
+        @mousedown="onCanvasMouseDown"
+      >
+        <transition-group name="thought-card-animation" tag="div">
+          <article
+            v-for="(thought, idx) in thoughts"
+            :key="thought.id"
+            :id="'thought-' + thought.id"
+            class="absolute rounded-2xl bg-white/95 shadow-2xl p-6 flex flex-col justify-between transition duration-200 ease-in-out cursor-grab select-none border border-indigo-100 space-mono"
+            :class="[
+              'hover:shadow-3xl hover:-translate-y-1 hover:scale-[1.03]',
+              draggingCardId === thought.id ? 'z-30 ring-2 ring-indigo-300' : 'z-10'
+            ]"
+            :style="{
+              left: (positions[thought.id]?.x || sidebarWidth + 100) + 'px',
+              top: (positions[thought.id]?.y || 100) + 'px',
+              minWidth: '260px',
+              maxWidth: '420px',
+              width: 'auto',
+              minHeight: '80px',
+              maxHeight: '400px',
+              '--thought-idx': idx,
+              '--thought-total': thoughts.length
+            }"
+            @mousedown.stop="onCardMouseDown($event, thought.id)"
+          >
+            <p class="mb-2 text-lg text-gray-800 font-medium break-words leading-snug w-full space-mono">
+              {{ thought.content }}
+            </p>
+            <footer class="text-right mt-auto space-mono">
+              <small class="text-gray-400 text-xs">{{ new Date(thought.created_at).toLocaleString() }}</small>
+            </footer>
+          </article>
+        </transition-group>
+        <p v-if="thoughts.length === 0 && !isLoading && !error"
+           class="text-gray-400 text-center text-lg mt-16 select-none space-mono">
+          it's nothing here, be brave and first!
+        </p>
+        <p v-if="isLoading && thoughts.length === 0"
+           class="text-gray-400 text-center text-lg mt-16 select-none space-mono">Загрузка...</p>
+      </div>
+    </main>
   </div>
 </template>
 
 <style scoped>
-/* Общий макет приложения */
-.app-layout {
-  display: flex;
-  flex-direction: column;
-  height: 100vh; /* Занимает всю высоту экрана */
-  background-color: #ffffff; /* Белый фон для всего "холста" */
-  overflow: hidden; /* Предотвращаем двойные скроллбары */
-}
-
-.app-header {
-  padding: 0.75rem 1rem; /* Немного уменьшим отступы, если используем Pico по умолчанию */
-  text-align: center;
-  border-bottom: 1px solid var(--pico-muted-border-color, #e1e1e1); /* Линия из Pico */
-  flex-shrink: 0; /* Заголовок не должен сжиматься */
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 1.25rem; /* Немного меньше для компактности */
-  color: var(--pico-h1-color, #1d2d35); /* Цвет из Pico */
-}
-
-/* Холст для мыслей */
-.thoughts-canvas {
-  flex-grow: 1; /* Занимает все доступное пространство */
-  overflow-y: auto; /* Позволяет прокручивать мысли, если их много */
-  padding: 1rem; /* Отступы внутри холста */
-  background-color: #ffffff; /* Явно белый фон холста */
-}
-
-.thoughts-grid {
-  display: flex;
-  flex-wrap: wrap; /* Карточки будут переноситься на новую строку */
-  gap: 1rem; /* Пространство между карточками */
-  align-content: flex-start; /* Карточки начинаются сверху */
-}
-
-/* Стилизация карточки мысли */
-.thought-card {
-  /* Pico <article> уже дает базовые стили, мы их дополняем */
-  background-color: var(--pico-card-background-color, #f8f9fa); /* Цвет фона карточки из Pico или свой */
-  border: 1px solid var(--pico-card-border-color, #e9ecef); /* Граница из Pico */
-  border-radius: 12px; /* Скругленные углы! */
-  padding: 1rem 1.25rem; /* Внутренние отступы */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Мягкая тень */
-  width: calc(33.333% - 1rem); /* Примерно 3 карточки в ряд, можно менять */
-  /* Можно добавить min-width/max-width для адаптивности */
-  min-width: 280px; /* Минимальная ширина карточки */
-  box-sizing: border-box; /* Чтобы padding и border не влияли на общую ширину */
-}
-
-.thought-card p {
-  margin-bottom: 0.5rem;
-  color: var(--pico-color, inherit);
-}
-
-.thought-card footer small {
-  color: var(--pico-secondary, #73828c); /* Цвет из Pico */
-}
-
-.no-thoughts, .loading-thoughts {
-  text-align: center;
-  width: 100%;
-  padding: 2rem;
-  color: var(--pico-secondary, #73828c);
-}
-
-/* Область ввода снизу */
-.input-area {
-  padding: 1rem;
-  background-color: var(--pico-form-element-background-color, #f1f3f5); /* Фон из Pico для форм */
-  border-top: 1px solid var(--pico-muted-border-color, #e1e1e1);
-  flex-shrink: 0; /* Область ввода не должна сжиматься */
-  box-shadow: 0 -2px 10px rgba(0,0,0,0.05); /* Небольшая тень сверху */
-}
-
-.thought-form {
-  display: flex;
-  gap: 0.75rem; /* Пространство между textarea и кнопкой */
-  align-items: flex-start; /* Выравнивание по верху */
-}
-
-.thought-form textarea {
-  flex-grow: 1;
-  /* Pico уже стилизует textarea, можно добавить min-height если нужно */
-  min-height: 40px; /* Чтобы не была слишком низкой */
-  resize: none; /* Отключаем изменение размера пользователем, если нужно */
-}
-
-.thought-form button {
-  /* Pico стилизует кнопку, здесь можно только специфичные调整 */
-  white-space: nowrap; /* Чтобы текст кнопки не переносился */
-}
-
-.error-message {
-  margin-top: 0.5rem;
-  color: var(--pico-invalid-color, #d83636); /* Цвет ошибки из Pico */
-  text-align: center;
-}
-
-/* Анимация для "хуяряться" */
 .thought-card-animation-enter-active,
 .thought-card-animation-leave-active {
-  transition: all 0.5s ease;
+  transition:
+    opacity 0.55s cubic-bezier(.4,2,.6,1),
+    transform 0.55s cubic-bezier(.4,2,.6,1);
 }
-.thought-card-animation-enter-from,
+.thought-card-animation-enter-from {
+  opacity: 0;
+  transform:
+    scale(0.85)
+    translateY(60px)
+    rotate(calc((var(--thought-idx, 0) - var(--thought-total, 0)/2) * 6deg));
+  filter: blur(2px);
+}
+.thought-card-animation-enter-to {
+  opacity: 1;
+  transform: scale(1) translateY(0) rotate(0deg);
+  filter: blur(0);
+}
+.thought-card-animation-leave-from {
+  opacity: 1;
+  transform: scale(1) translateY(0) rotate(0deg);
+  filter: blur(0);
+}
 .thought-card-animation-leave-to {
   opacity: 0;
-  transform: translateY(30px) scale(0.95); /* Вылетает снизу и немного увеличивается */
+  transform:
+    scale(0.85)
+    translateY(-60px)
+    rotate(calc((var (--thought-idx, 0) - var(--thought-total, 0)/2) * -6deg));
+  filter: blur(2px);
 }
-/* Для анимации перемещения, если порядок меняется */
 .thought-card-animation-move {
-  transition: transform 0.5s ease;
+  transition: transform 0.55s cubic-bezier(.4,2,.6,1);
+}
+
+/* Убираем скроллбары у body */
+body {
+  overflow: hidden !important;
+}
+
+.poiret {
+  font-family: 'Poiret One', cursive, sans-serif !important;
+  letter-spacing: 0.04em;
+}
+.lowercase {
+  text-transform: lowercase !important;
+}
+.space-mono {
+  font-family: 'Space Mono', monospace !important;
+}
+
+/* Расширяем область захвата для drag&pan по краям холста */
+.canvas-pan-area {
+  position: absolute;
+  top: 0; left: 0; width: 100%; height: 100%;
+}
+.canvas-pan-area::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: -64px; left: -64px; right: -64px; bottom: -64px;
+  /* Невидимая, но ловит мышь */
+  background: transparent;
+  pointer-events: auto;
+}
+</style>
+
+<style>
+/* Убираем скроллбары у html и body глобально */
+html, body {
+  overflow: hidden !important;
+  height: 100%;
+  width: 100%;
 }
 </style>
