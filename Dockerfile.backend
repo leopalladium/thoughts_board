@@ -1,4 +1,4 @@
-# Dockerfile.backend
+  GNU nano 8.1                                                                                    Dockerfile.backend                                                                                             # Dockerfile.backend
 FROM python:3.11-slim-buster
 
 # Install PostgreSQL client libraries and other build essentials
@@ -15,6 +15,9 @@ WORKDIR /app
 
 RUN pip install poetry
 
+# Configure Poetry to create virtualenvs inside the project directory (.venv folder)
+RUN poetry config virtualenvs.in-project true
+
 COPY poetry.lock pyproject.toml /app/
 
 RUN poetry install --no-root
@@ -23,4 +26,4 @@ COPY . /app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/.venv/bin/uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
