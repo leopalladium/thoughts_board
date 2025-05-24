@@ -37,6 +37,8 @@ DB_PASSWORD = os.getenv("DB_PASSWORD") # Это будет генерирова�
 DB_HOST = os.getenv("DB_HOST", "db") # Имя сервиса Docker Compose
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "thoughts_db")
+# Конфигурация для вывода SQL запросов (по умолчанию False для продакшена)
+DB_ECHO_SQL = os.getenv("DB_ECHO_SQL", "False").lower() == "true"
 
 # Конструируем DATABASE_URL самостоятельно
 if not DB_PASSWORD:
@@ -48,8 +50,9 @@ if not DB_PASSWORD:
 DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 print(f"Используемый DATABASE_URL (без пароля): postgresql+psycopg2://{DB_USER}:*****@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+print(f"SQLAlchemy echo (DB_ECHO_SQL): {DB_ECHO_SQL}")
 
-engine = create_engine(DATABASE_URL, echo=True) # echo=True для логгирования SQL запросов
+engine = create_engine(DATABASE_URL, echo=DB_ECHO_SQL) # echo=True для логгирования SQL запросов
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
@@ -68,7 +71,8 @@ app = FastAPI(title="Thought Board API MVP", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Or specify your frontend URL
+    allow_origins=["*"],  # WARNING: For production, replace "*" with your frontend's actual origin URL(s) for security.
+    # Example: allow_origins=["http://localhost:3000", "https://yourfrontend.com"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

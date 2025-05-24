@@ -30,5 +30,6 @@ if ! grep -q "^DB_USER=" "$ENV_FILE"; then echo "DB_USER=leopalladium" >> "$ENV_
 if ! grep -q "^DB_NAME=" "$ENV_FILE"; then echo "DB_NAME=thoughts_db" >> "$ENV_FILE"; fi
 if ! grep -q "^DB_HOST=" "$ENV_FILE"; then echo "DB_HOST=db" >> "$ENV_FILE"; fi # Имя сервиса БД
 if ! grep -q "^DB_PORT=" "$ENV_FILE"; then echo "DB_PORT=5432" >> "$ENV_FILE"; fi # Порт БД
+if ! grep -q "^DB_ECHO_SQL=" "$ENV_FILE"; then echo "DB_ECHO_SQL=false" >> "$ENV_FILE"; fi # Эхо SQL запросов
 
-echo "DB_PASSWORD, DB_USER, DB_NAME, DB_HOST, DB_PORT verified/generated in .env"
+echo "DB_PASSWORD, DB_USER, DB_NAME, DB_HOST, DB_PORT, DB_ECHO_SQL verified/generated in .env"
