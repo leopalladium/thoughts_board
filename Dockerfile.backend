@@ -2,43 +2,34 @@
 FROM python:3.11-slim-buster
 WORKDIR /app
 
-# [backend 2/10] - Install build dependencies for psycopg2 (if needed)
+# Install build dependencies for psycopg2
 RUN apt-get update && \
     apt-get install -y \
     gcc \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# [backend 3/10] - Set working directory
-# WORKDIR /app # Already set above, usually you only need one WORKDIR
-
-# [backend 4/10] - Install Poetry
-RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python -
+# Install Poetry and configure it in the same RUN command
+RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python - && \
+    /opt/poetry/bin/poetry config virtualenvs.in-project true # Use full path to poetry here for initial config
 
 # CRITICAL FIX: Ensure this ENV PATH is immediately after Poetry installation
-# and before any 'poetry' commands.
+# and before any subsequent 'poetry' commands.
 ENV PATH="/opt/poetry/bin:$PATH"
 
-# [backend 5/10] - Configure Poetry (this command now should find 'poetry')
-RUN poetry config virtualenvs.in-project true
-
-# [backend 6/10] - Copy project files for dependency installation
+# Copy project files for dependency installation
 COPY poetry.lock pyproject.toml ./
 
-# [backend 7/10] - Install dependencies
-RUN poetry install --no-root
+# Install dependencies (this 'poetry' command will now use the updated PATH)
+RUN poetry install --no-root --without dev
 
-# [backend 8/10] - Copy the password generation script and make it executable
-# This script is now run by the ENTRYPOINT when the container starts, not during build.
+# Copy the password generation script and make it executable
 COPY generate_db_password.sh /usr/local/bin/generate_db_password.sh
 RUN chmod +x /usr/local/bin/generate_db_password.sh
 
-# [backend 9/10] - Copy the rest of your application code
+# Copy the rest of your application code
 COPY . .
 
-# [backend 10/10] - Set Entrypoint and Command
-# ENTRYPOINT is the script that runs first when the container starts
+# Set Entrypoint and Command
 ENTRYPOINT ["/usr/local/bin/generate_db_password.sh"]
-
-# CMD is the command passed to the ENTRYPOINT script
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
