@@ -24,6 +24,9 @@ COPY poetry.lock pyproject.toml ./
 # Install dependencies
 RUN poetry install --no-root
 
+# Copy the password generation script and make it executable
+COPY generate_db_password.sh /usr/local/bin/generate_db_password.sh
+RUN chmod +x /usr/local/bin/generate_db_password.sh
 
 # Copy the rest of your application code
 COPY . .
