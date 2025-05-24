@@ -2,16 +2,18 @@
 FROM python:3.11-slim-buster
 WORKDIR /app
 
-# Install build dependencies for psycopg2
+# Install build dependencies for psycopg2 AND curl
 RUN apt-get update && \
     apt-get install -y \
     gcc \
     libpq-dev \
+    curl \  # <--- ADD CURL HERE
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry and configure it in the same RUN command
+# curl will now be available
 RUN curl -sSL https://install.python-poetry.org | POETRY_HOME=/opt/poetry python - && \
-    /opt/poetry/bin/poetry config virtualenvs.in-project true # Use full path to poetry here for initial config
+    /opt/poetry/bin/poetry config virtualenvs.in-project true
 
 # CRITICAL FIX: Ensure this ENV PATH is immediately after Poetry installation
 # and before any subsequent 'poetry' commands.
@@ -20,7 +22,7 @@ ENV PATH="/opt/poetry/bin:$PATH"
 # Copy project files for dependency installation
 COPY poetry.lock pyproject.toml ./
 
-# Install dependencies (this 'poetry' command will now use the updated PATH)
+# Install dependencies
 RUN poetry install --no-root --without dev
 
 # Copy the password generation script and make it executable
