@@ -4,30 +4,32 @@ services:
       context: .
       dockerfile: Dockerfile.backend
     container_name: thoughts_board_backend
+    ports:
+      - "8000:8000"
     volumes:
       - ./.env:/app/.env:ro
+    networks:
+      - app-network
     environment:
       PORT: 8000
     depends_on:
       - db
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # ports:
-    #   - "8000:8000"
+
 
   frontend:
     build:
       context: ./frontend-app
       dockerfile: Dockerfile.frontend
     container_name: thoughts_board_frontend
+    ports:
+      - "5173:5173"
+    networks:
+      - app-network
     depends_on:
       - backend
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-    # ports:
-    #   - "8080:80"
+
 
   db:
     image: postgres:16-alpine
@@ -38,9 +40,12 @@ services:
       POSTGRES_DB: ${DB_NAME}
     volumes:
       - db_data:/var/lib/postgresql/data
+    networks:
+      - app-network
     restart: unless-stopped
-    # ports:
-    #   - "5432:5432"
 
 volumes:
   db_data: {}
+
+networks:
+    app-network: {}
