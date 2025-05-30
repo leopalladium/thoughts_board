@@ -82,7 +82,7 @@ function scrollToLastThought() {
     el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
   }
 }
-
+//sdf
 
 // --- Card Drag ---
 function onCardMouseDown(e, id) {
