@@ -20,15 +20,10 @@ jobs:
       contents: read
       packages: write
       id-token: write
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
-        with:
-          cosign-release: 'v2.2.4'
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
@@ -41,29 +36,56 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
+      # --- Сборка Backend образа ---
+      - name: Extract Docker metadata for backend
+        id: meta_backend
         uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
 
-      - name: Build and push Docker image
-        id: build-and-push
+      - name: Build and push backend Docker image
+        id: build-and-push-backend
         uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
           context: .
+          file: ./Dockerfile.backend # Указываем правильный Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Sign the published Docker image
+      # --- Сборка Frontend образа ---
+      - name: Extract Docker metadata for frontend
+        id: meta_frontend
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
+
+      - name: Build and push frontend Docker image
+        id: build-and-push-frontend
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        with:
+          context: ./frontend-app # Указываем контекст для фронтенда
+          file: ./frontend-app/Dockerfile.frontend # Указываем правильный Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Подписание образов (опционально, можно удалить, если не нужно)
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
+
+      - name: Sign the backend image
         if: ${{ github.event_name != 'pull_request' }}
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build-and-push.outputs.digest }}
-        run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
+        run: echo "${{ steps.meta_backend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-backend.outputs.digest }}
+
+      - name: Sign the frontend image
+        if: ${{ github.event_name != 'pull_request' }}
+        run: echo "${{ steps.meta_frontend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-frontend.outputs.digest }}
 
   # --- Add this new job to deploy to your server ---
   deploy:
