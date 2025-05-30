@@ -22,7 +22,7 @@ const positions = reactive({});
 const draggingCardId = ref(null);
 const dragCardOffset = reactive({ x: 0, y: 0 });
 
-const backendUrl = 'http://127.0.0.1:8000';
+const backendUrl = 'https://api.klimentsi.live';
 
 // --- Utils ---
 function getRandomPosition() {
