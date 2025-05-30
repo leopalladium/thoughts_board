@@ -40,6 +40,7 @@ async function fetchThoughts() {
   isLoading.value = true;
   error.value = '';
   try {
+    // Corrected the URL to include the /thoughts/ endpoint
     const response = await axios.get(`${backendUrl}/thoughts/`);
     thoughts.value = response.data;
     await nextTick();
