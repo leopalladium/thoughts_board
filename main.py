@@ -33,8 +33,8 @@ class ThoughtRead(ThoughtBase): # Схема для чтения
 # Читаем отдельные компоненты URL из переменных окружения
 # Если их нет в .env, можно задать значения по умолчанию
 DB_USER = os.getenv("DB_USER", "leopalladium")
-DB_PASSWORD = os.getenv("DB_PASSWORD") # Это будет генерироваться скриптом
-DB_HOST = os.getenv("DB_HOST", "db") # Имя сервиса Docker Compose
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_HOST = os.getenv("DB_HOST", "db")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("DB_NAME", "thoughts_db")
 # Конфигурация для вывода SQL запросов (по умолчанию False для продакшена)
@@ -43,7 +43,7 @@ DB_ECHO_SQL = os.getenv("DB_ECHO_SQL", "False").lower() == "true"
 # Конструируем DATABASE_URL самостоятельно
 if not DB_PASSWORD:
     print("Ошибка: Переменная окружения DB_PASSWORD не найдена!")
-    print("Пожалуйста, убедитесь, что скрипт generate_db_password.sh был запущен.")
+    print("Проверьте, что переменная DB_PASSWORD определена в .env и передаётся в контейнер через docker-compose.yml.")
     exit() # Выход, если пароль не задан
 
 # Формируем строку подключения
