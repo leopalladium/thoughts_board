@@ -1,98 +1,93 @@
-name: Docker Image CI/CD
+name: Docker
 
 on:
+  schedule:
+    - cron: '37 8 * * *'
   push:
     branches: [ "master" ]
     tags: [ 'v*.*.*' ]
   pull_request:
     branches: [ "master" ]
-  # Optional: scheduled builds
-  schedule:
-    - cron: '16 15 * * *'
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
       id-token: write
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
+      - name: Install cosign
+        if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          cosign-release: 'v2.2.4'
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
 
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image (multi-platform)
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+
+      - name: Build and push Docker image
         id: build-and-push
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
         with:
           context: .
-          file: ./Dockerfile     # Edit if your Dockerfile is elsewhere
-          platforms: linux/amd64,linux/arm64
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          outputs: type=docker,dest=/tmp/image.tar
-
-      # Save the built image as a GitHub Actions artifact for manual download
-      - name: Upload Docker image as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: docker-image
-          path: /tmp/image.tar
-          retention-days: 7
-
-      # Optionally sign the image if not a PR
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3.5.0
-        with:
-          cosign-release: 'v2.2.4'
 
       - name: Sign the published Docker image
-        if: github.event_name != 'pull_request'
+        if: ${{ github.event_name != 'pull_request' }}
         env:
           TAGS: ${{ steps.meta.outputs.tags }}
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
         run: echo "${TAGS}" | xargs -I {} cosign sign --yes {}@${DIGEST}
 
-  # Optionally, attach the image as a release asset on tag
-  attach-image-to-release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build-and-push
+  # --- Add this new job to deploy to your server ---
+  deploy:
+    needs: build # This job runs only after the 'build' job succeeds
     runs-on: ubuntu-latest
+    # Only run this job on a push to the master branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+
     steps:
-      - name: Download the Docker image artifact
-        uses: actions/download-artifact@v4
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@master
         with:
-          name: docker-image
-          path: .
-      - name: Upload image to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: image.tar
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            # Navigate to your project directory on the server
+            cd /path/to/your/project/on/server
+
+            # Pull the latest images specified in your docker-compose.yml
+            docker compose pull
+
+            # Restart the services with the new images
+            docker compose up -d --remove-orphans
+
+            # Clean up old, unused Docker images to save space
+            docker image prune -af
