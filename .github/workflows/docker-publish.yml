@@ -89,27 +89,22 @@ jobs:
 
   # --- Add this new job to deploy to your server ---
   deploy:
-    needs: build # This job runs only after the 'build' job succeeds
+    needs: build
     runs-on: ubuntu-latest
-    # Only run this job on a push to the master branch
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-
+  
     steps:
+      - name: Debug SSH connection
+        run: ssh -i ${{ secrets.SSH_PRIVATE_KEY }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo SSH connection successful"
+  
       - name: Deploy to Server
-        uses: appleboy/ssh-action@master
+        uses: appleboy/ssh-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            # Navigate to your project directory on the server
             cd /path/to/your/project/on/server
-
-            # Pull the latest images specified in your docker-compose.yml
             docker compose pull
-
-            # Restart the services with the new images
             docker compose up -d --remove-orphans
-
-            # Clean up old, unused Docker images to save space
             docker image prune -af
