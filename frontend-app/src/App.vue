@@ -83,6 +83,7 @@ function scrollToLastThought() {
   }
 }
 
+
 // --- Card Drag ---
 function onCardMouseDown(e, id) {
   draggingCardId.value = id;
