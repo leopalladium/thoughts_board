@@ -1,7 +1,6 @@
 # leopalladium/thoughts_board/thoughts_board-b58e087bb544fc831102b75eeecf0ec1b7f252bf/main.py
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from sqlmodel import Field, Session, SQLModel, create_engine, select
-from pydantic import BaseModel
 from typing import List, Optional
 from contextlib import asynccontextmanager
 from datetime import datetime
