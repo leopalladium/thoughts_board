@@ -89,6 +89,12 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         run: echo "${{ steps.meta_frontend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-frontend.outputs.digest }}
 
+      # --- ДОБАВЬТЕ ЭТОТ ШАГ ---
+      - name: Display pushed tags
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Pushed Backend Tags: ${{ steps.meta_backend.outputs.tags }}"
+          echo "Pushed Frontend Tags: ${{ steps.meta_frontend.outputs.tags }}"
   # ===============================================
   # JOB #2: Deploy to Server
   # ===============================================
