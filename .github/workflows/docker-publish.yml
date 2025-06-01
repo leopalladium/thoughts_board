@@ -88,23 +88,16 @@ jobs:
         run: echo "${{ steps.meta_frontend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-frontend.outputs.digest }}
 
   # --- Add this new job to deploy to your server ---
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-
-    steps:
-      - name: Debug SSH connection
-        run: ssh -vvv -i ${{ secrets.SSH_PRIVATE_KEY }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo SSH connection successful"
-
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v0.1.7
+      - name: Deploy to DigitalOcean Droplet
+        uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /path/to/your/project/on/server
+            cd ~/thoughts
+            echo "${{ secrets.ENV_FILE }}" > .env
+            export TAG=${{ steps.commit.outputs.sha_short }}
             docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -af
+            docker compose up -d --no-deps backend frontend # Перезапускаем только обновленные сервисы
+            docker image prune -f # Очищаем старые, неиспользуемые образы
