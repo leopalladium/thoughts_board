@@ -96,7 +96,6 @@ jobs:
           key: ${{ secrets.SSH_KEY }}
           script: |
             cd ~/thoughts
-            echo "${{ secrets.ENV_FILE }}" > .env
             export TAG=${{ steps.commit.outputs.sha_short }}
             docker compose pull
             docker compose up -d --no-deps backend frontend # Перезапускаем только обновленные сервисы
