@@ -130,7 +130,7 @@ jobs:
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
             echo ">>> Определение тега и полных имен образов..."
-            IMAGE_TAG="$(echo ${{ github.sha }} | cut -c1-7)"
+            IMAGE_TAG="master"
             BACKEND_IMAGE="ghcr.io/${{ github.repository }}-backend:${IMAGE_TAG}"
             FRONTEND_IMAGE="ghcr.io/${{ github.repository }}-frontend:${IMAGE_TAG}"
             echo "Новый образ бэкенда: $BACKEND_IMAGE"
