@@ -9,204 +9,135 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Имя образа будет ghcr.io/ВАШ_ЛОГИН/ВАШ_РЕПОЗИТОРИЙ-backend (и -frontend)
+  # Image name will be ghcr.io/YOUR_LOGIN/YOUR_REPOSITORY
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   # ===============================================
-  # ЗАДАЧА №1: Сборка и публикация Docker-образов
+  # JOB #1: Build and Push Docker Images
   # ===============================================
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      # Необходимо для cosign keyless signing
-      id-token: write
+      id-token: write # Required for keyless signing with Cosign
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        # https://github.com/docker/setup-buildx-action
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
-        # https://github.com/docker/login-action
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Сборка Backend образа ---
+      # --- Build Backend Image ---
       - name: Extract Docker metadata for backend
         id: meta_backend
-        # https://github.com/docker/metadata-action
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
-          # Пример тегов:
-          # type=schedule
-          # type=ref,event=branch
-          # type=ref,event=pr
-          # type=semver,pattern={{version}}
-          # type=semver,pattern={{major}}.{{minor}}
-          # type=semver,pattern={{major}}
-          # type=sha
 
       - name: Build and push backend Docker image
         id: build-and-push-backend
-        # https://github.com/docker/build-push-action
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        uses: docker/build-push-action@v5
         with:
-          context: . # Контекст сборки - корневая папка
-          file: ./Dockerfile.backend # Указываем Dockerfile для backend
+          context: .
+          file: ./Dockerfile.backend
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta_backend.outputs.tags }}
           labels: ${{ steps.meta_backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # --- Сборка Frontend образа ---
+      # --- Build Frontend Image ---
       - name: Extract Docker metadata for frontend
         id: meta_frontend
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
-          # Указываем Dockerfile для frontend внутри его папки
-          # dockerfile: ./frontend-app/Dockerfile.frontend # Это не здесь, а в build-push-action
 
       - name: Build and push frontend Docker image
         id: build-and-push-frontend
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        uses: docker/build-push-action@v5
         with:
-          context: ./frontend-app # Контекст сборки - папка frontend-app
-          file: ./frontend-app/Dockerfile.frontend # Dockerfile для frontend
+          context: ./frontend-app
+          file: ./frontend-app/Dockerfile.frontend
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # --- Подписание образов (опционально) ---
-      # Использует keyless signing с Sigstore
+      # --- (Optional) Sign Images ---
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        # https://github.com/sigstore/cosign-installer
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
-        # Можно также указать версию:
-        # with:
-        #   cosign-release: 'v2.2.3'
+        uses: sigstore/cosign-installer@v3.5.0
 
       - name: Sign the backend image
-        # Этот шаг запускается только если событие не pull_request
         if: ${{ github.event_name != 'pull_request' }}
-        # COSIGN_EXPERIMENTAL=1 нужен для keyless signing (без своего ключа)
-        # --yes для автоматического подтверждения
-        run: |
-          echo "${{ steps.meta_backend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-backend.outputs.digest }}
-        env:
-          COSIGN_EXPERIMENTAL: 1
+        run: echo "${{ steps.meta_backend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-backend.outputs.digest }}
 
       - name: Sign the frontend image
         if: ${{ github.event_name != 'pull_request' }}
-        run: |
-          echo "${{ steps.meta_frontend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-frontend.outputs.digest }}
-        env:
-          COSIGN_EXPERIMENTAL: 1
+        run: echo "${{ steps.meta_frontend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-frontend.outputs.digest }}
 
   # ===============================================
-  # ЗАДАЧА №2: Развертывание на сервере
+  # JOB #2: Deploy to Server
   # ===============================================
   deploy:
-    needs: build # Зависит от успешного выполнения задачи build
+    # This job MUST be at the same indentation level as the 'build' job
+    needs: build
     runs-on: ubuntu-latest
-    # Запускается только при push событии (не при pull_request или tag)
-    # Если нужно и при тегах, можно изменить: github.event_name == 'push' || startsWith(github.ref, 'refs/tags/')
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master' # Только для push в master
+    if: github.event_name == 'push' # Only run on push events
 
     steps:
-      - name: Deploy to Server (e.g., DigitalOcean Droplet)
-        # https://github.com/appleboy/ssh-action
-        uses: appleboy/ssh-action@master # Рекомендуется использовать конкретную версию, например @v1.0.3
+      - name: Deploy to DigitalOcean Droplet
+        uses: appleboy/ssh-action@v1.0.3 # Pinned to a specific version for stability
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
-          # Порт, если не стандартный 22
-          # port: ${{ secrets.SSH_PORT }}
           script: |
-            set -e # Прерывать скрипт при любой ошибке
+            set -e # Exit immediately if a command exits with a non-zero status.
             
-            # Переходим в папку проекта на сервере
-            # Убедитесь, что эта папка существует и содержит docker-compose.yml
-            cd ~/thoughts 
+            cd ~/thoughts
             
             echo "Logging into GHCR..."
-            # Логинимся в GitHub Container Registry для скачивания образов
-            # GHCR_PAT должен быть Personal Access Token с правами read:packages
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Получаем короткий хеш коммита, который использовался для тега образа
-            # metadata-action создает теги типа sha-<shortsha> для ветки master
-            # Если вы используете другие теги для деплоя (например, latest или v*.*.*), адаптируйте эту логику
-            # Для master ветки, docker/metadata-action обычно создает тег 'master' и 'sha-<short_commit_sha>'
-            # Если вы хотите использовать тег 'master', то можно сделать так:
-            # BACKEND_IMAGE_TAG="master"
-            # FRONTEND_IMAGE_TAG="master"
-            # Или, если вы хотите использовать sha-<short_commit_sha> который генерируется по умолчанию для ветки:
-            GIT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-            BACKEND_IMAGE_TAG="sha-${GIT_SHA}"
-            FRONTEND_IMAGE_TAG="sha-${GIT_SHA}"
-
-            # Если это был пуш тега (например v1.0.0), то GITHUB_REF будет refs/tags/v1.0.0
-            if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-              TAG_NAME=${{ github.ref_name }} # Получаем имя тега, например v1.0.0
-              BACKEND_IMAGE_TAG="${TAG_NAME}"
-              FRONTEND_IMAGE_TAG="${TAG_NAME}"
+            # Determine the image tag based on the Git reference
+            # If it's a tag like v1.2.3, use that. Otherwise, use the short commit SHA.
+            if [[ "${{ github.ref_type }}" == "tag" ]]; then
+              IMAGE_TAG="${{ github.ref_name }}"
+            else
+              IMAGE_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
             fi
             
-            # Формируем полные и точные имена образов с тегом
-            BACKEND_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME_BASE }}-backend:${BACKEND_IMAGE_TAG}"
-            FRONTEND_IMAGE="ghcr.io/${{ github.repository_owner }}/${{ env.IMAGE_NAME_BASE }}-frontend:${FRONTEND_IMAGE_TAG}"
-            # Для IMAGE_NAME_BASE нужно определить его в env, например:
-            # IMAGE_NAME_BASE: ${{ toLower(github.repository_owner) }}/${{ toLower(substringAfter(github.repository, '/')) }}
-            # Или если IMAGE_NAME уже содержит owner/repo:
-            # BACKEND_IMAGE="ghcr.io/${{ env.IMAGE_NAME }}-backend:${BACKEND_IMAGE_TAG}"
-            # FRONTEND_IMAGE="ghcr.io/${{ env.IMAGE_NAME }}-frontend:${FRONTEND_IMAGE_TAG}"
-            # Судя по вашему env.IMAGE_NAME, он уже содержит owner/repo, так что:
-            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${BACKEND_IMAGE_TAG}"
-            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${FRONTEND_IMAGE_TAG}"
-
-            echo "Updating docker-compose.yml with new images:"
-            echo "Backend: $BACKEND_IMAGE"
-            echo "Frontend: $FRONTEND_IMAGE"
+            echo "Using image tag: $IMAGE_TAG"
             
-            # Обновляем docker-compose.yml, используя sed.
-            # Важно: разделитель в sed можно менять, если в именах образов есть /
-            # Например, sed -i "s#image: ghcr.io/.*-backend:.*#image: $BACKEND_IMAGE#" docker-compose.yml
-            # Убедитесь, что паттерн в sed точно соответствует тому, что у вас в docker-compose.yml
-            sed -i "s|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:.*|image: $BACKEND_IMAGE|" docker-compose.yml
-            sed -i "s|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:.*|image: $FRONTEND_IMAGE|" docker-compose.yml
+            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${IMAGE_TAG}"
+            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${IMAGE_TAG}"
+            
+            echo "Updating docker-compose.yml..."
+            # Using '#' as a separator for sed to avoid conflicts with '/' in the image name
+            sed -i "s#image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:.*#image: $BACKEND_IMAGE#" docker-compose.yml
+            sed -i "s#image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:.*#image: $FRONTEND_IMAGE#" docker-compose.yml
             
             echo "Pulling new images..."
-            # Скачиваем новые версии образов по точному тегу
-            # docker-compose pull # Эта команда скачает все сервисы
-            docker compose pull backend frontend # Скачиваем только нужные
+            docker compose pull
             
             echo "Restarting services..."
-            # Перезапускаем только обновленные сервисы, не трогая остальные (например, базу данных)
-            # --no-deps чтобы не перезапускать зависимости, если они не изменились
-            # --remove-orphans чтобы удалить контейнеры для сервисов, которых больше нет в docker-compose.yml
-            docker compose up -d --no-deps backend frontend --remove-orphans
+            docker compose up -d --no-deps backend frontend
             
             echo "Pruning old images..."
-            # Очищаем старые, неиспользуемые Docker образы, чтобы освободить место
             docker image prune -a -f
             
             echo "Deployment successful!"
-            # Лишняя команда очистки, уже была выше
-            # docker image prune -a -f 
