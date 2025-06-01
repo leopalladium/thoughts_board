@@ -105,39 +105,54 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
+          # ... (в вашей задаче deploy)
           script: |
-            set -e # Exit immediately if a command exits with a non-zero status.
+            # Включаем режим отладки: выводить каждую команду перед выполнением
+            set -x
+            # Прерывать скрипт при любой ошибке
+            set -e
             
+            echo ">>> ШАГ 1: Переход в директорию проекта..."
             cd ~/thoughts
             
-            echo "Logging into GHCR..."
+            echo ">>> ШАГ 2: Логин в GHCR..."
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            # Determine the image tag based on the Git reference
-            # If it's a tag like v1.2.3, use that. Otherwise, use the short commit SHA.
-            if [[ "${{ github.ref_type }}" == "tag" ]]; then
-              IMAGE_TAG="${{ github.ref_name }}"
-            else
-              IMAGE_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
-            fi
+            echo ">>> ШАГ 3: Определение тега и полных имен образов..."
+            IMAGE_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
+            echo "Используемый тег: ${IMAGE_TAG}"
             
-            echo "Using image tag: $IMAGE_TAG"
+            BACKEND_IMAGE="ghcr.io/${{ github.repository }}-backend:${IMAGE_TAG}"
+            FRONTEND_IMAGE="ghcr.io/${{ github.repository }}-frontend:${IMAGE_TAG}"
+            echo "Бэкенд образ: $BACKEND_IMAGE"
+            echo "Фронтенд образ: $FRONTEND_IMAGE"
             
-            BACKEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:${IMAGE_TAG}"
-            FRONTEND_IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:${IMAGE_TAG}"
+            echo ">>> ШАГ 4: Показываем docker-compose.yml ДО ИЗМЕНЕНИЙ..."
+            cat docker-compose.yml
             
-            echo "Updating docker-compose.yml..."
-            # Using '#' as a separator for sed to avoid conflicts with '/' in the image name
-            sed -i "s#image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend:.*#image: $BACKEND_IMAGE#" docker-compose.yml
-            sed -i "s#image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend:.*#image: $FRONTEND_IMAGE#" docker-compose.yml
+            echo ">>> ШАГ 5: Выполнение замены с помощью sed..."
+            sed -i "s#image: ghcr.io/.*-backend:.*#image: $BACKEND_IMAGE#" docker-compose.yml
+            sed -i "s#image: ghcr.io/.*-frontend:.*#image: $FRONTEND_IMAGE#" docker-compose.yml
             
-            echo "Pulling new images..."
+            echo ">>> ШАГ 6: Показываем docker-compose.yml ПОСЛЕ ИЗМЕНЕНИЙ..."
+            # Этот вывод - ключ к разгадке!
+            cat docker-compose.yml
+            
+            echo ">>> ШАГ 7: Валидация измененного файла..."
+            # Эта команда упадет, если в файле ошибка, и покажет ЧТО не так
+            docker compose config
+            echo ">>> Валидация docker-compose.yml прошла успешно."
+            
+            echo ">>> ШАГ 8: Скачивание новых образов..."
             docker compose pull
             
-            echo "Restarting services..."
+            echo ">>> ШАГ 9: Перезапуск сервисов..."
             docker compose up -d --no-deps backend frontend
             
-            echo "Pruning old images..."
+            echo ">>> ШАГ 10: Очистка старых образов..."
             docker image prune -a -f
             
-            echo "Deployment successful!"
+            echo ">>> Деплой успешно завершен!"
+                docker image prune -a -f
+                
+                echo "Deployment successful!"
