@@ -95,6 +95,14 @@ jobs:
         run: |
           echo "Pushed Backend Tags: ${{ steps.meta_backend.outputs.tags }}"
           echo "Pushed Frontend Tags: ${{ steps.meta_frontend.outputs.tags }}"
+        # --- ДОБАВЬТЕ ЭТОТ ШАГ В САМЫЙ КОНЕЦ ЗАДАЧИ BUILD ---
+      - name: Display pushed tags
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "================================================="
+          echo "Pushed Backend Tags: ${{ steps.meta_backend.outputs.tags }}"
+          echo "Pushed Frontend Tags: ${{ steps.meta_frontend.outputs.tags }}"
+          echo "================================================="
   # ===============================================
   # JOB #2: Deploy to Server
   # ===============================================
