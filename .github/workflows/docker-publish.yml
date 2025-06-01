@@ -1,8 +1,6 @@
-name: Docker
+name: Docker CI/CD
 
 on:
-  schedule:
-    - cron: '37 8 * * *'
   push:
     branches: [ "master" ]
     tags: [ 'v*.*.*' ]
@@ -11,73 +9,77 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  # Image name will be ghcr.io/YOUR_LOGIN/YOUR_REPOSITORY
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  # ===============================================
+  # JOB #1: Build and Push Docker Images
+  # ===============================================
   build:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      id-token: write
+      id-token: write # Required for keyless signing with Cosign
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f95db51fddba0c2d1ec667646a06c2ce06100226 # v3.0.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Log into registry ${{ env.REGISTRY }}
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@343f7c4344506bcbf9b4de18042ae17996df046d # v3.0.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      # --- Сборка Backend образа ---
+      # --- Build Backend Image ---
       - name: Extract Docker metadata for backend
         id: meta_backend
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-backend
 
       - name: Build and push backend Docker image
         id: build-and-push-backend
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        uses: docker/build-push-action@v5
         with:
           context: .
-          file: ./Dockerfile.backend # Указываем правильный Dockerfile
+          file: ./Dockerfile.backend
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta_backend.outputs.tags }}
           labels: ${{ steps.meta_backend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # --- Сборка Frontend образа ---
+      # --- Build Frontend Image ---
       - name: Extract Docker metadata for frontend
         id: meta_frontend
-        uses: docker/metadata-action@96383f45573cb7f253c731d3b3ab81c87ef81934 # v5.0.0
+        uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}-frontend
 
       - name: Build and push frontend Docker image
         id: build-and-push-frontend
-        uses: docker/build-push-action@0565240e2d4ab88bba5387d719585280857ece09 # v5.0.0
+        uses: docker/build-push-action@v5
         with:
-          context: ./frontend-app # Указываем контекст для фронтенда
-          file: ./frontend-app/Dockerfile.frontend # Указываем правильный Dockerfile
+          context: ./frontend-app
+          file: ./frontend-app/Dockerfile.frontend
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta_frontend.outputs.tags }}
           labels: ${{ steps.meta_frontend.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Подписание образов (опционально, можно удалить, если не нужно)
+      # --- (Optional) Sign Images ---
       - name: Install cosign
         if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@59acb6260d9c0ba8f4a2f9d9b48431a222b68e20 #v3.5.0
+        uses: sigstore/cosign-installer@v3.5.0
 
       - name: Sign the backend image
         if: ${{ github.event_name != 'pull_request' }}
@@ -87,24 +89,70 @@ jobs:
         if: ${{ github.event_name != 'pull_request' }}
         run: echo "${{ steps.meta_frontend.outputs.tags }}" | xargs -I {} cosign sign --yes {}@${{ steps.build-and-push-frontend.outputs.digest }}
 
-  # --- Add this new job to deploy to your server ---
+      # --- ДОБАВЬТЕ ЭТОТ ШАГ ---
+      - name: Display pushed tags
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Pushed Backend Tags: ${{ steps.meta_backend.outputs.tags }}"
+          echo "Pushed Frontend Tags: ${{ steps.meta_frontend.outputs.tags }}"
+        # --- ДОБАВЬТЕ ЭТОТ ШАГ В САМЫЙ КОНЕЦ ЗАДАЧИ BUILD ---
+      - name: Display pushed tags
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "================================================="
+          echo "Pushed Backend Tags: ${{ steps.meta_backend.outputs.tags }}"
+          echo "Pushed Frontend Tags: ${{ steps.meta_frontend.outputs.tags }}"
+          echo "================================================="
+  # ===============================================
+  # JOB #2: Deploy to Server
+  # ===============================================
   deploy:
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    if: github.event_name == 'push'
 
     steps:
-      - name: Debug SSH connection
-        run: ssh -vvv -i ${{ secrets.SSH_PRIVATE_KEY }} -o StrictHostKeyChecking=no ${{ secrets.SSH_USER }}@${{ secrets.SSH_HOST }} "echo SSH connection successful"
-
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v0.1.7
+      - name: Deploy to DigitalOcean Droplet
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
+          # УБЕДИТЕСЬ, ЧТО ИМЯ СЕКРЕТА В НАСТРОЙКАХ GITHUB - ИМЕННО SSH_PRIVATE_KEY
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /path/to/your/project/on/server
+            # Прерывать скрипт при любой ошибке
+            set -e
+            
+            echo ">>> Переход в директорию проекта..."
+            cd ~/thoughts
+            
+            echo ">>> Логин в GHCR..."
+            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            echo ">>> Определение тега и полных имен образов..."
+            IMAGE_TAG="master"
+            BACKEND_IMAGE="ghcr.io/${{ github.repository }}-backend:${IMAGE_TAG}"
+            FRONTEND_IMAGE="ghcr.io/${{ github.repository }}-frontend:${IMAGE_TAG}"
+            echo "Новый образ бэкенда: $BACKEND_IMAGE"
+            
+            echo ">>> Обновление docker-compose.yml..."
+            # Исправлены отступы для чистоты YAML
+            sed -i "/backend:/,/container_name:/ s#^\s*image:.*#    image: $BACKEND_IMAGE#" docker-compose.yml
+            sed -i "/frontend:/,/container_name:/ s#^\s*image:.*#    image: $FRONTEND_IMAGE#" docker-compose.yml
+            
+            echo ">>> Проверка содержимого файла после замены:"
+            cat docker-compose.yml
+            
+            echo ">>> Валидация docker-compose.yml..."
+            docker compose config
+  
+            echo ">>> Скачивание новых образов..."
             docker compose pull
-            docker compose up -d --remove-orphans
-            docker image prune -af
+            
+            echo ">>> Перезапуск сервисов..."
+            docker compose up -d --no-deps backend frontend
+            
+            echo ">>> Очистка старых образов..."
+            docker image prune -a -f
+            
+            echo "✅✅✅ Деплой успешно завершен! Поздравляю! ✅✅✅"
