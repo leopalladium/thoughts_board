@@ -1,4 +1,3 @@
-# leopalladium/thoughts_board/thoughts_board-b58e087bb544fc831102b75eeecf0ec1b7f252bf/main.py
 from fastapi import FastAPI, Depends, HTTPException
 from sqlmodel import Field, Session, SQLModel, create_engine, select
 from pydantic import BaseModel
@@ -71,7 +70,7 @@ app = FastAPI(title="Thought Board API MVP", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # WARNING: For production, replace "*" with your frontend's actual origin URL(s) for security.
+    allow_origins=["klimentsi.live"],  # WARNING: For production, replace "*" with your frontend's actual origin URL(s) for security.
     # Example: allow_origins=["http://localhost:3000", "https://yourfrontend.com"],
     allow_credentials=True,
     allow_methods=["*"],
