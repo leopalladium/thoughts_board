@@ -92,38 +92,56 @@ jobs:
   # ЗАДАЧА №2: Развертывание на сервере
   # ===============================================
   deploy:
-    # Запускать эту задачу только после успешной сборки
-    needs: build
-    runs-on: ubuntu-latest
-    
-    # Запускать деплой только при push в master или по тегу, НЕ для pull-request
-    if: github.event_name == 'push'
+  needs: build
+  runs-on: ubuntu-latest
+  if: github.event_name == 'push'
 
-    steps:
-      - name: Deploy to DigitalOcean Droplet
-        uses: appleboy/ssh-action@master
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            # Переходим в папку проекта
-            cd ~/thoughts
-            
-            # Логинимся в GitHub Container Registry с помощью Personal Access Token
-            # Убедитесь, что секрет GHCR_PAT создан в настройках репозитория!
-            echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-            
-            # Динамически обновляем docker-compose.yml новыми образами
-            # Это надежнее, чем использовать теги
-            sed -i 's|image: ghcr.io/.*-backend:.*|image: ${{ needs.build.outputs.backend_image }}|' docker-compose.yml
-            sed -i 's|image: ghcr.io/.*-frontend:.*|image: ${{ needs.build.outputs.frontend_image }}|' docker-compose.yml
-            
-            # Скачиваем новые версии образов
-            docker compose pull
-            
-            # Перезапускаем только обновленные сервисы
-            docker compose up -d --no-deps backend frontend
+  steps:
+    - name: Deploy to DigitalOcean Droplet
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.SSH_HOST }}
+        username: ${{ secrets.SSH_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        script: |
+          set -e # Прерывать скрипт при любой ошибке
+          
+          # Переходим в папку проекта
+          cd ~/thoughts
+          
+          echo "Logging into GHCR..."
+          # Логинимся в GitHub Container Registry
+          echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          
+          # Получаем короткий хеш коммита, который использовался для тега
+          GIT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          
+          # Формируем полные и точные имена образов с тегом
+          BACKEND_IMAGE="ghcr.io/${{ github.repository }}-backend:sha-${GIT_SHA}"
+          FRONTEND_IMAGE="ghcr.io/${{ github.repository }}-frontend:sha-${GIT_SHA}"
+          
+          echo "Updating docker-compose.yml with new images:"
+          echo "Backend: $BACKEND_IMAGE"
+          echo "Frontend: $FRONTEND_IMAGE"
+          
+          # Обновляем docker-compose.yml, используя sed.
+          # Обратите внимание на двойные кавычки, чтобы переменные $BACKEND_IMAGE работали.
+          sed -i "s|image: ghcr.io/.*-backend:.*|image: $BACKEND_IMAGE|" docker-compose.yml
+          sed -i "s|image: ghcr.io/.*-frontend:.*|image: $FRONTEND_IMAGE|" docker-compose.yml
+          
+          echo "Pulling new images..."
+          # Скачиваем новые версии образов по точному тегу
+          docker compose pull
+          
+          echo "Restarting services..."
+          # Перезапускаем только обновленные сервисы
+          docker compose up -d --no-deps backend frontend
+          
+          echo "Pruning old images..."
+          # Очищаем старые, неиспользуемые образы
+          docker image prune -a -f
+          
+          echo "Deployment successful!"
             
             # Очищаем старые, неиспользуемые образы
             docker image prune -a -f
