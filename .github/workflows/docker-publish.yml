@@ -105,10 +105,11 @@ jobs:
   
     steps:
       - name: Deploy to DigitalOcean Droplet
-        uses: appleboy/ssh-action@v1.0.3 # Можно использовать и @master
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
+          # УБЕДИТЕСЬ, ЧТО ИМЯ СЕКРЕТА В НАСТРОЙКАХ GITHUB - ИМЕННО SSH_PRIVATE_KEY
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             # Прерывать скрипт при любой ошибке
@@ -127,13 +128,15 @@ jobs:
             echo "Новый образ бэкенда: $BACKEND_IMAGE"
             
             echo ">>> Обновление docker-compose.yml..."
-            # ФИНАЛЬНАЯ, НАДЕЖНАЯ КОМАНДА SED
-            # Она находит блок 'backend:', и внутри него заменяет любую строку, начинающуюся с 'image:'
+            # Исправлены отступы для чистоты YAML
             sed -i "/backend:/,/container_name:/ s#^\s*image:.*#    image: $BACKEND_IMAGE#" docker-compose.yml
             sed -i "/frontend:/,/container_name:/ s#^\s*image:.*#    image: $FRONTEND_IMAGE#" docker-compose.yml
             
             echo ">>> Проверка содержимого файла после замены:"
             cat docker-compose.yml
+            
+            echo ">>> Валидация docker-compose.yml..."
+            docker compose config
   
             echo ">>> Скачивание новых образов..."
             docker compose pull
