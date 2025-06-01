@@ -93,66 +93,49 @@ jobs:
   # JOB #2: Deploy to Server
   # ===============================================
   deploy:
-    # This job MUST be at the same indentation level as the 'build' job
     needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' # Only run on push events
-
+    if: github.event_name == 'push'
+  
     steps:
       - name: Deploy to DigitalOcean Droplet
-        uses: appleboy/ssh-action@v1.0.3 # Pinned to a specific version for stability
+        uses: appleboy/ssh-action@v1.0.3 # Можно использовать и @master
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          # ... (в вашей задаче deploy)
+          key: ${{ secrets.SSH_KEY }}
           script: |
-            # Включаем режим отладки: выводить каждую команду перед выполнением
-            set -x
             # Прерывать скрипт при любой ошибке
             set -e
             
-            echo ">>> ШАГ 1: Переход в директорию проекта..."
+            echo ">>> Переход в директорию проекта..."
             cd ~/thoughts
             
-            echo ">>> ШАГ 2: Логин в GHCR..."
+            echo ">>> Логин в GHCR..."
             echo "${{ secrets.GHCR_PAT }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
             
-            echo ">>> ШАГ 3: Определение тега и полных имен образов..."
+            echo ">>> Определение тега и полных имен образов..."
             IMAGE_TAG="sha-$(echo ${{ github.sha }} | cut -c1-7)"
-            echo "Используемый тег: ${IMAGE_TAG}"
-            
             BACKEND_IMAGE="ghcr.io/${{ github.repository }}-backend:${IMAGE_TAG}"
             FRONTEND_IMAGE="ghcr.io/${{ github.repository }}-frontend:${IMAGE_TAG}"
-            echo "Бэкенд образ: $BACKEND_IMAGE"
-            echo "Фронтенд образ: $FRONTEND_IMAGE"
+            echo "Новый образ бэкенда: $BACKEND_IMAGE"
             
-            echo ">>> ШАГ 4: Показываем docker-compose.yml ДО ИЗМЕНЕНИЙ..."
+            echo ">>> Обновление docker-compose.yml..."
+            # ФИНАЛЬНАЯ, НАДЕЖНАЯ КОМАНДА SED
+            # Она находит блок 'backend:', и внутри него заменяет любую строку, начинающуюся с 'image:'
+            sed -i "/backend:/,/container_name:/ s#^\s*image:.*#    image: $BACKEND_IMAGE#" docker-compose.yml
+            sed -i "/frontend:/,/container_name:/ s#^\s*image:.*#    image: $FRONTEND_IMAGE#" docker-compose.yml
+            
+            echo ">>> Проверка содержимого файла после замены:"
             cat docker-compose.yml
-            
-            echo ">>> ШАГ 5: Выполнение замены с помощью sed..."
-            sed -i "s#image: ghcr.io/.*-backend:.*#image: $BACKEND_IMAGE#" docker-compose.yml
-            sed -i "s#image: ghcr.io/.*-frontend:.*#image: $FRONTEND_IMAGE#" docker-compose.yml
-            
-            echo ">>> ШАГ 6: Показываем docker-compose.yml ПОСЛЕ ИЗМЕНЕНИЙ..."
-            # Этот вывод - ключ к разгадке!
-            cat docker-compose.yml
-            
-            echo ">>> ШАГ 7: Валидация измененного файла..."
-            # Эта команда упадет, если в файле ошибка, и покажет ЧТО не так
-            docker compose config
-            echo ">>> Валидация docker-compose.yml прошла успешно."
-            
-            echo ">>> ШАГ 8: Скачивание новых образов..."
+  
+            echo ">>> Скачивание новых образов..."
             docker compose pull
             
-            echo ">>> ШАГ 9: Перезапуск сервисов..."
+            echo ">>> Перезапуск сервисов..."
             docker compose up -d --no-deps backend frontend
             
-            echo ">>> ШАГ 10: Очистка старых образов..."
+            echo ">>> Очистка старых образов..."
             docker image prune -a -f
             
-            echo ">>> Деплой успешно завершен!"
-                docker image prune -a -f
-                
-                echo "Deployment successful!"
+            echo "✅✅✅ Деплой успешно завершен! Поздравляю! ✅✅✅"
