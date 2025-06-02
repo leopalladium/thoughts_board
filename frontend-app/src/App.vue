@@ -47,7 +47,7 @@ const fetchThoughts = async () => {
     });
   } catch (err) {
     console.error("Ошибка при загрузке мыслей:", err);
-    error.value = "Не удалось загрузить мысли. Попробуйте позже.";
+    error.value = "Something went wrong. Try again later.";
   } finally {
     isLoading.value = false;
   }
@@ -62,13 +62,13 @@ onMounted(() => {
   <div class="fixed inset-0 bg-gray-900 text-white overflow-hidden">
     <header class="absolute top-0 left-0 right-0 p-4 bg-gray-900/50 backdrop-blur-sm z-10">
       <div class="max-w-3xl mx-auto">
-        <h1 class="text-3xl text-center font-['Poiret_One']">Доска Мыслей</h1>
+        <h1 class="text-3xl text-center font-['Poiret_One']">you'll never read</h1>
         <NewThoughtForm @thought-added="handleThoughtAdded" />
       </div>
     </header>
 
     <main class="w-full h-full">
-      <div v-if="isLoading" class="flex items-center justify-center h-full">Загрузка...</div>
+      <div v-if="isLoading" class="flex items-center justify-center h-full">loading...</div>
       <div v-if="error" class="flex items-center justify-center h-full text-red-500">{{ error }}</div>
 
       <ThoughtBoard

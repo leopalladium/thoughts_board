@@ -1,5 +1,5 @@
 <script setup>
-import { computed, toRefs } from 'vue';
+import { computed } from 'vue';
 import { useDrag } from 'vue3-dnd';
 
 // Определяем props
