@@ -1,13 +1,14 @@
 <template>
   <main class="container mx-auto max-w-3xl">
     <header class="text-center my-12">
-      <h1 class="text-5xl font-bold mb-2 font-mono">Thought Board</h1>
-      <p class="text-gray-400">Простое приложение на FastAPI и Vue.js</p>
+      <h1 class="text-5xl font-bold mb-2 font-mono">you'll never read</h1>
+      <p class="text-gray-400"><b>why?</b> for thoughts that can't be spoken directly, for messages that can't be sent. if you have something you need to say to someone, but the words won't reach them, share it here. this is a safe space for your true feelings. they'll never read it, but at least strangers will. <br>
+      </p>
     </header>
 
     <thought-form @thought-added="addThought" />
 
-    <div v-if="isLoading" class="text-center text-gray-500">Загрузка мыслей...</div>
+    <div v-if="isLoading" class="text-center text-gray-500">loading...</div>
     <div v-if="error" class="text-center text-red-500">{{ error }}</div>
 
     <div v-if="thoughts.length" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
@@ -18,7 +19,7 @@
       />
     </div>
     <div v-else-if="!isLoading && !error" class="text-center text-gray-500 mt-8">
-      Пока мыслей нет. Станьте первым!
+      it's nothing here, be brave and first
     </div>
   </main>
 </template>
@@ -44,7 +45,7 @@ const fetchThoughts = async () => {
     error.value = null;
   } catch (err) {
     console.error("Ошибка при загрузке мыслей:", err);
-    error.value = 'Не удалось загрузить мысли. Попробуйте обновить страницу.';
+    error.value = 'could not load thoughts, try again later';
   } finally {
     isLoading.value = false;
   }
