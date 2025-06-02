@@ -13,27 +13,19 @@ load_dotenv()
 
 
 # ---- Модели данных SQLModel ----
-
-
-# Возвращаем модель Thought к простому виду, без владельца
 class ThoughtBase(SQLModel):
     content: str = Field(index=True)
 
 class Thought(ThoughtBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-    # Убираем owner_id и связь
-    # owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
-    # owner: Optional[User] = Relationship(back_populates="thoughts")
 
-class ThoughtCreate(ThoughtBase):
+class ThoughtCreate(ThoughtBase): # Схема для создания
     pass
 
-class ThoughtRead(ThoughtBase):
+class ThoughtRead(ThoughtBase): # Схема для чтения
     id: int
     created_at: datetime
-    # Убираем owner_id и отсюда
-    # owner_id: Optional[int] = None
 
 # ---- Настройка базы данных ----
 
