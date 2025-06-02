@@ -70,8 +70,8 @@ app = FastAPI(title="Thought Board API MVP", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["klimentsi.live"],  # WARNING: For production, replace "*" with your frontend's actual origin URL(s) for security.
-    # Example: allow_origins=["http://localhost:3000", "https://yourfrontend.com"],
+    # Change this line
+    allow_origins=["https://klimentsi.live"], #
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
