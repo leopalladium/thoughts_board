@@ -11,6 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # Это нужно сделать до того, как DATABASE_URL будет прочитан
 load_dotenv()
 
+# TODO: Make the class for the admin user
 
 # ---- Модели данных SQLModel ----
 class ThoughtBase(SQLModel):
@@ -110,3 +111,7 @@ def read_thoughts_endpoint(skip: int = 0, limit: int = 100, session: Session = D
     statement = select(Thought).offset(skip).limit(limit).order_by(Thought.created_at.desc())
     thoughts = session.exec(statement).all()
     return thoughts
+
+#TODO: Добавить эндпоинты для обновления и удаления мыслей
+#TODO: Сделать аутентификацию и авторизацию для админа
+
