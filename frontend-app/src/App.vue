@@ -1,8 +1,8 @@
 <template>
-  <main class="container mx-auto max-w-3xl">
+  <main class="container mx-auto max-w-6xl">
     <header class="text-center my-12">
       <h1 class="text-5xl font-bold mb-2 font-mono">Thought Board</h1>
-      <p class="text-gray-400">Простое приложение на FastAPI и Vue.js</p>
+      <p class="text-gray-400">Поделитесь своей мыслью со вселенной</p>
     </header>
 
     <thought-form @thought-added="addThought" />
@@ -10,33 +10,44 @@
     <div v-if="isLoading" class="text-center text-gray-500">Загрузка мыслей...</div>
     <div v-if="error" class="text-center text-red-500">{{ error }}</div>
 
-    <div v-if="thoughts.length" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="relative w-full h-[600px] bg-gray-900/50 rounded-lg border border-gray-700 mt-8">
       <thought-card
           v-for="thought in thoughts"
           :key="thought.id"
           :thought="thought"
+          class="absolute transition-all duration-300 ease-in-out"
+          :style="getThoughtStyle(thought.id)"
       />
-    </div>
-    <div v-else-if="!isLoading && !error" class="text-center text-gray-500">
-      Пока мыслей нет. Станьте первым!
     </div>
   </main>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, reactive } from 'vue';
 import axios from 'axios';
 import ThoughtCard from './components/ThoughtCard.vue';
 import ThoughtForm from './components/ThoughtForm.vue';
 
-// URL вашего API. Убедитесь, что он правильный для вашего окружения.
-const API_URL = 'https://api.klimentsi.live/thoughts/';
+const API_URL = import.meta.env.VITE_API_URL;
 
 const thoughts = ref([]);
 const isLoading = ref(true);
 const error = ref(null);
+// 3. Объект для хранения случайных позиций
+const thoughtPositions = reactive(new Map());
 
-// Функция для загрузки мыслей с сервера
+// 4. Функция для генерации и получения стилей
+const getThoughtStyle = (id) => {
+  if (!thoughtPositions.has(id)) {
+    // Генерируем случайные top и left в процентах, чтобы карточки не вылезали за пределы
+    const top = Math.floor(Math.random() * 80); // 0% to 80% to avoid overflow
+    const left = Math.floor(Math.random() * 80); // 0% to 80%
+    thoughtPositions.set(id, { top: `${top}%`, left: `${left}%` });
+  }
+  return thoughtPositions.get(id);
+};
+
+
 const fetchThoughts = async () => {
   try {
     isLoading.value = true;
@@ -45,40 +56,27 @@ const fetchThoughts = async () => {
     error.value = null;
   } catch (err) {
     console.error("Ошибка при загрузке мыслей:", err);
-    error.value = 'Не удалось загрузить мысли. Попробуйте обновить страницу.';
+    error.value = 'Не удалось загрузить мысли.';
   } finally {
     isLoading.value = false;
   }
 };
 
-// Функция для добавления новой мысли
 const addThought = async (thoughtData) => {
   try {
-    const response = await axios.post(API_URL, thoughtData, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    // Добавляем новую мысль в начало списка без перезагрузки всей страницы
+    const response = await axios.post(API_URL, thoughtData);
     thoughts.value.unshift(response.data);
   } catch (err) {
     console.error("Ошибка при добавлении мысли:", err);
-    // Здесь можно показать пользователю сообщение об ошибке
   }
 };
 
-// Загружаем мысли, когда компонент монтируется
 onMounted(fetchThoughts);
 </script>
 
 <style>
-/* Добавим фон для body для лучшего вида */
-body {
-  background-color: #1a202c; /* tailwind-css gray-900 */
-  color: #e2e8f0; /* tailwind-css gray-300 */
-}
-/* Используем шрифты из index.html */
-h1 {
-  font-family: 'Space Mono', monospace;
+/* Дополнительные стили, чтобы карточки не перекрывали форму */
+#app {
+  padding-bottom: 5rem;
 }
 </style>
