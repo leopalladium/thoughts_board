@@ -14,51 +14,41 @@ load_dotenv()
 
 # ---- Модели данных SQLModel ----
 
-# НОВАЯ МОДЕЛЬ USER
 class UserBase(SQLModel):
     username: str = Field(index=True, unique=True)
     is_admin: bool = False
 
-
 class User(UserBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     hashed_password: str
-
-    # Связь: один пользователь может иметь много мыслей
-    thoughts: List["Thought"] = Relationship(back_populates="owner")
-
+    # Убираем связь с мыслями отсюда
+    # thoughts: List["Thought"] = Relationship(back_populates="owner")
 
 class UserCreate(UserBase):
     password: str
 
-
 class UserRead(UserBase):
     id: int
 
-
-# ОБНОВЛЕННАЯ МОДЕЛЬ THOUGHT
+# Возвращаем модель Thought к простому виду, без владельца
 class ThoughtBase(SQLModel):
     content: str = Field(index=True)
-
 
 class Thought(ThoughtBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
-
-    # Связь: каждая мысль принадлежит одному пользователю
-    owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
-    owner: Optional[User] = Relationship(back_populates="thoughts")
-
+    # Убираем owner_id и связь
+    # owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    # owner: Optional[User] = Relationship(back_populates="thoughts")
 
 class ThoughtCreate(ThoughtBase):
     pass
 
-
-# Добавим связь в схему для чтения
 class ThoughtRead(ThoughtBase):
     id: int
     created_at: datetime
-    owner_id: Optional[int] = None  # Теперь мы можем видеть, кто автор мысли
+    # Убираем owner_id и отсюда
+    # owner_id: Optional[int] = None
 
 # ---- Настройка базы данных ----
 
