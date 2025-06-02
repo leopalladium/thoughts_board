@@ -34,7 +34,7 @@ class ThoughtRead(ThoughtBase): # Схема для чтения
 DB_USER = os.getenv("POSTGRES_USER", "leopalladium")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_HOST = os.getenv("POSTGRES_DB", "db")
-DB_PORT = os.getenv("DB_PASSWORD", "5432")
+DB_PORT = os.getenv("DB_PORT", "5432")
 DB_NAME = os.getenv("POSTGRES_DB", "thoughts_db")
 # Конфигурация для вывода SQL запросов (по умолчанию False для продакшена)
 DB_ECHO_SQL = os.getenv("DB_ECHO_SQL", "False").lower() == "true"
