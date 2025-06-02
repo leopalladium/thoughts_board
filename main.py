@@ -79,8 +79,6 @@ app = FastAPI(title="Thought Board API MVP", lifespan=lifespan)
 origins = [
     "https://klimentsi.live",      # Ваш домен фронтенда
     "https://api.klimentsi.live", # Ваш домен бэкенда
-    "http://localhost",           # Для локальной разработки
-    "http://localhost:8080",      # Для локальной разработки
 ]
 
 app.add_middleware(
