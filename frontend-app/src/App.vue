@@ -30,7 +30,7 @@ import axios from 'axios';
 import ThoughtCard from './components/ThoughtCard.vue';
 import ThoughtForm from './components/ThoughtForm.vue';
 
-const API_URL = "https://klimentsi.live/thoughts"; // URL вашего FastAPI сервера
+const API_URL = "https://api.klimentsi.live/thoughts"; // URL вашего FastAPI сервера
 
 const thoughts = ref([]);
 const isLoading = ref(true);
