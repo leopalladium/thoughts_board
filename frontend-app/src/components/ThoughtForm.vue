@@ -4,13 +4,13 @@
       <textarea
           v-model="newThoughtContent"
           name="content"
-          placeholder="Что у вас на уме?"
+          placeholder="what don't you talk about?"
           required
           class="w-full p-3 bg-gray-900 border border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
           rows="3"
       ></textarea>
       <button type="submit" :disabled="isLoading" class="py-2 px-4 bg-blue-600 hover:bg-blue-700 rounded-lg transition disabled:opacity-50">
-        {{ isLoading ? 'Публикация...' : 'Опубликовать мысль' }}
+        {{ isLoading ? 'posting...' : 'share' }}
       </button>
     </div>
   </form>
