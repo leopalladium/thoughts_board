@@ -1,21 +1,50 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import api from './services/api.js'; // Наш сервис для API
+import { ref, reactive, onMounted } from 'vue';
+import api from './services/api.js';
 import NewThoughtForm from './components/NewThoughtForm.vue';
-import ThoughtList from './components/ThoughtList.vue';
+import ThoughtBoard from './components/ThoughtBoard.vue'; // Используем новый компонент
 
-// Реактивная переменная для хранения списка мыслей
 const thoughts = ref([]);
+// Используем reactive для хранения позиций, т.к. это объект
+const thoughtPositions = reactive({});
+
 const isLoading = ref(true);
 const error = ref(null);
 
-// Функция для загрузки мыслей с сервера
+// Функция для обновления позиции
+const handleThoughtMoved = ({ id, left, top }) => {
+  thoughtPositions[id] = { left, top };
+};
+
+// При добавлении новой мысли даем ей случайную начальную позицию
+const handleThoughtAdded = async (content) => {
+  try {
+    const response = await api.createThought(content);
+    const newThought = response.data;
+    thoughts.value.unshift(newThought);
+    // Задаем случайные координаты в пределах видимой части
+    thoughtPositions[newThought.id] = {
+      left: Math.floor(Math.random() * (window.innerWidth - 300)),
+      top: Math.floor(Math.random() * (window.innerHeight - 300)),
+    };
+  } catch (err) {
+    console.error("Ошибка при создании мысли:", err);
+  }
+};
+
 const fetchThoughts = async () => {
   try {
     isLoading.value = true;
     error.value = null;
     const response = await api.getThoughts();
     thoughts.value = response.data;
+    // Инициализируем позиции для загруженных мыслей
+    response.data.forEach((thought, index) => {
+      thoughtPositions[thought.id] = {
+        left: (index * 50) % window.innerWidth,
+        top: Math.floor(index / 10) * 50 + 150,
+      };
+    });
   } catch (err) {
     console.error("Ошибка при загрузке мыслей:", err);
     error.value = "Не удалось загрузить мысли. Попробуйте позже.";
@@ -24,47 +53,30 @@ const fetchThoughts = async () => {
   }
 };
 
-// Функция для обработки добавления новой мысли
-const handleThoughtAdded = async (content) => {
-  try {
-    const response = await api.createThought(content);
-    // Добавляем новую мысль в начало списка без перезагрузки всей страницы
-    thoughts.value.unshift(response.data);
-  } catch (err) {
-    console.error("Ошибка при создании мысли:", err);
-    // Здесь можно показать пользователю ошибку
-  }
-};
-
-// Загружаем мысли при первом рендере компонента
 onMounted(() => {
   fetchThoughts();
 });
 </script>
 
 <template>
-  <div id="app-container" class="w-full min-h-screen bg-gray-900 text-white p-4 sm:p-8">
-    <header class="text-center mb-12">
-      <h1 class="text-4xl sm:text-5xl font-bold font-['Poiret_One']">Доска Мыслей</h1>
-      <p class="text-gray-400">Делитесь своими идеями со всем миром</p>
+  <div class="fixed inset-0 bg-gray-900 text-white overflow-hidden">
+    <header class="absolute top-0 left-0 right-0 p-4 bg-gray-900/50 backdrop-blur-sm z-10">
+      <div class="max-w-3xl mx-auto">
+        <h1 class="text-3xl text-center font-['Poiret_One']">Доска Мыслей</h1>
+        <NewThoughtForm @thought-added="handleThoughtAdded" />
+      </div>
     </header>
 
-    <main class="max-w-3xl mx-auto">
-      <NewThoughtForm @thought-added="handleThoughtAdded" />
+    <main class="w-full h-full">
+      <div v-if="isLoading" class="flex items-center justify-center h-full">Загрузка...</div>
+      <div v-if="error" class="flex items-center justify-center h-full text-red-500">{{ error }}</div>
 
-      <div v-if="isLoading" class="text-center text-gray-500">Загрузка...</div>
-      <div v-if="error" class="text-center text-red-500">{{ error }}</div>
-
-      <ThoughtList v-if="!isLoading && !error" :thoughts="thoughts" />
+      <ThoughtBoard
+          v-if="!isLoading && !error"
+          :thoughts="thoughts"
+          :positions="thoughtPositions"
+          @thought-moved="handleThoughtMoved"
+      />
     </main>
   </div>
 </template>
-
-<style>
-/* В src/style.css теперь можно оставить только импорт Tailwind
-  и самые базовые стили для body/html, если они нужны.
-  Большинство стилей лучше делать с помощью утилит Tailwind прямо в шаблонах.
-  @import "tailwindcss"; уже есть в вашем style.css.
-  Шрифты уже подключены в index.html.
-*/
-</style>
