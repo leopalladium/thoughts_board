@@ -45,3 +45,27 @@ Thumbs.db
 
 # Other
 tmp/
+
+# IDE
+.idea/
+.vscode/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Frontend
+frontend-app/node_modules/
+frontend-app/dist/
+*.log
+
+# Secrets
+.env
+traefik/acme.json
+
+# OS
+.DS_Store
+Thumbs.db
