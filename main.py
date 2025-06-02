@@ -6,10 +6,6 @@ from datetime import datetime
 import os
 from dotenv import load_dotenv
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import OAuth2PasswordRequestForm
-from datetime import timedelta
-from .auth import create_access_token, verify_password
-from . import auth
 
 # Загружаем переменные окружения из .env файла
 # Это нужно сделать до того, как DATABASE_URL будет прочитан
@@ -18,21 +14,6 @@ load_dotenv()
 
 # ---- Модели данных SQLModel ----
 
-class UserBase(SQLModel):
-    username: str = Field(index=True, unique=True)
-    is_admin: bool = False
-
-class User(UserBase, table=True):
-    id: Optional[int] = Field(default=None, primary_key=True)
-    hashed_password: str
-    # Убираем связь с мыслями отсюда
-    # thoughts: List["Thought"] = Relationship(back_populates="owner")
-
-class UserCreate(UserBase):
-    password: str
-
-class UserRead(UserBase):
-    id: int
 
 # Возвращаем модель Thought к простому виду, без владельца
 class ThoughtBase(SQLModel):
@@ -139,27 +120,3 @@ def read_thoughts_endpoint(skip: int = 0, limit: int = 100, session: Session = D
     statement = select(Thought).offset(skip).limit(limit).order_by(Thought.created_at.desc())
     thoughts = session.exec(statement).all()
     return thoughts
-
-
-@app.post("/token")
-def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)):
-    """
-    Получение JWT токена по имени пользователя и паролю.
-    """
-    user = session.exec(select(User).where(User.username == form_data.username)).first()
-
-    # Проверяем, что пользователь существует и пароль верен
-    if not user or not verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-
-    # Создаем токен
-    access_token_expires = timedelta(minutes=auth.ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
-
-    return {"access_token": access_token, "token_type": "bearer"}

@@ -1,8 +1,7 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 from passlib.context import CryptContext
-from jose import JWTError, jwt
-from fastapi import Depends, HTTPException, status
+from jose import jwt
 from fastapi.security import OAuth2PasswordBearer
 
 # --- НАСТРОЙКИ JWT ---
