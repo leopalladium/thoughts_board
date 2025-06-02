@@ -1,82 +1,29 @@
-<template>
-  <main class="container mx-auto max-w-3xl">
-    <header class="text-center my-12">
-      <h1 class="text-5xl font-bold mb-2 font-mono">you'll never read</h1>
-      <p class="text-gray-400"><b>why?</b> for thoughts that can't be spoken directly, for messages that can't be sent. if you have something you need to say to someone, but the words won't reach them, share it here. this is a safe space for your true feelings. they'll never read it, but at least strangers will. <br>
-      </p>
-    </header>
-
-    <thought-form @thought-added="addThought" />
-
-    <div v-if="isLoading" class="text-center text-gray-500">loading...</div>
-    <div v-if="error" class="text-center text-red-500">{{ error }}</div>
-
-    <div v-if="thoughts.length" class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
-      <thought-card
-          v-for="thought in thoughts"
-          :key="thought.id"
-          :thought="thought"
-      />
-    </div>
-    <div v-else-if="!isLoading && !error" class="text-center text-gray-500 mt-8">
-      it's nothing here, be brave and first
-    </div>
-  </main>
-</template>
-
 <script setup>
-import { ref, onMounted } from 'vue';
-import axios from 'axios';
-import ThoughtCard from './components/ThoughtCard.vue';
-import ThoughtForm from './components/ThoughtForm.vue';
-
-const API_URL = "https://api.klimentsi.live/thoughts"; // URL вашего FastAPI сервера
-
-const thoughts = ref([]);
-const isLoading = ref(true);
-const error = ref(null);
-
-// Функция для загрузки мыслей с сервера
-const fetchThoughts = async () => {
-  try {
-    isLoading.value = true;
-    const response = await axios.get(API_URL);
-    thoughts.value = response.data;
-    error.value = null;
-  } catch (err) {
-    console.error("Ошибка при загрузке мыслей:", err);
-    error.value = 'could not load thoughts, try again later';
-  } finally {
-    isLoading.value = false;
-  }
-};
-
-// Функция для добавления новой мысли
-const addThought = async (thoughtData) => {
-  try {
-    const response = await axios.post(API_URL, thoughtData, {
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    // Добавляем новую мысль в начало списка без перезагрузки всей страницы
-    thoughts.value.unshift(response.data);
-  } catch (err) {
-    console.error("Ошибка при добавлении мысли:", err);
-  }
-};
-
-// Загружаем мысли, когда компонент монтируется
-onMounted(fetchThoughts);
+import { RouterLink, RouterView } from 'vue-router';
 </script>
 
-<style>
-/* Можно оставить общие стили, если они нужны */
-body {
-  background-color: #1a202c;
-  color: #e2e8f0;
-}
-h1 {
-  font-family: 'Space Mono', monospace;
-}
+<template>
+  <div class="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-gray-100">
+    <header class="bg-indigo-700 text-white p-4 shadow-md">
+      <nav class="container mx-auto flex justify-between items-center">
+        <RouterLink to="/" class="text-2xl font-bold">Мой Сайт</RouterLink>
+        <div class="space-x-4">
+          <RouterLink to="/" class="hover:text-indigo-200 transition duration-300">Главная</RouterLink>
+          <RouterLink to="/thoughts" class="hover:text-indigo-200 transition duration-300">Доска Мыслей</RouterLink>
+          <RouterLink to="/about" class="hover:text-indigo-200 transition duration-300">О нас</RouterLink>
+        </div>
+      </nav>
+    </header>
+
+    <main class="flex-1 w-full max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <RouterView />
+    </main>
+
+    <footer class="bg-gray-800 text-white p-4 text-center shadow-inner">
+      <p>&copy; 2025 Мой Модульный Сайт. Все права защищены.</p>
+    </footer>
+  </div>
+</template>
+
+<style scoped>
 </style>
