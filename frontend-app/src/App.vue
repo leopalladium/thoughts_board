@@ -30,7 +30,7 @@ import ThoughtCard from './components/ThoughtCard.vue';
 import ThoughtForm from './components/ThoughtForm.vue';
 
 // URL вашего API. Убедитесь, что он правильный для вашего окружения.
-const API_URL = 'https://klimentsi.live/api/thoughts/';
+const API_URL = 'https://api.klimentsi.live/thoughts/';
 
 const thoughts = ref([]);
 const isLoading = ref(true);
