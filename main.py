@@ -1,6 +1,5 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends
 from sqlmodel import Field, Session, SQLModel, create_engine, select
-from pydantic import BaseModel
 from typing import List, Optional
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -12,20 +11,54 @@ from fastapi.middleware.cors import CORSMiddleware
 # Это нужно сделать до того, как DATABASE_URL будет прочитан
 load_dotenv()
 
+
 # ---- Модели данных SQLModel ----
+
+# НОВАЯ МОДЕЛЬ USER
+class UserBase(SQLModel):
+    username: str = Field(index=True, unique=True)
+    is_admin: bool = False
+
+
+class User(UserBase, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    hashed_password: str
+
+    # Связь: один пользователь может иметь много мыслей
+    thoughts: List["Thought"] = Relationship(back_populates="owner")
+
+
+class UserCreate(UserBase):
+    password: str
+
+
+class UserRead(UserBase):
+    id: int
+
+
+# ОБНОВЛЕННАЯ МОДЕЛЬ THOUGHT
 class ThoughtBase(SQLModel):
     content: str = Field(index=True)
+
 
 class Thought(ThoughtBase, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     created_at: datetime = Field(default_factory=datetime.utcnow, nullable=False)
 
-class ThoughtCreate(ThoughtBase): # Схема для создания
+    # Связь: каждая мысль принадлежит одному пользователю
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    owner: Optional[User] = Relationship(back_populates="thoughts")
+
+
+class ThoughtCreate(ThoughtBase):
     pass
 
-class ThoughtRead(ThoughtBase): # Схема для чтения
+
+# Добавим связь в схему для чтения
+class ThoughtRead(ThoughtBase):
     id: int
     created_at: datetime
+    owner_id: Optional[int] = None  # Теперь мы можем видеть, кто автор мысли
 
 # ---- Настройка базы данных ----
 
