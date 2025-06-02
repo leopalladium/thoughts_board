@@ -67,15 +67,22 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Thought Board API MVP", lifespan=lifespan)
 
+# ---- CORS Middleware ----
+origins = [
+    "https://klimentsi.live",      # Ваш домен фронтенда
+    "https://api.klimentsi.live", # Ваш домен бэкенда
+    "http://localhost",           # Для локальной разработки
+    "http://localhost:8080",      # Для локальной разработки
+]
 
 app.add_middleware(
     CORSMiddleware,
-    # Change this line
-    allow_origins=["https://klimentsi.live"], #
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # ---- Зависимость для получения сессии БД ----
 def get_session():
     with Session(engine) as session:
