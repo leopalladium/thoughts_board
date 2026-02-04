@@ -1,0 +1,29 @@
+# Этап 1: Сборка (Build)
+FROM node:20-alpine as build-stage
+
+WORKDIR /app
+
+# Копируем package.json и package-lock.json
+COPY package*.json ./
+
+# Устанавливаем зависимости
+RUN npm install
+
+# Копируем исходный код
+COPY node_modules .
+
+# Собираем приложение для продакшена
+RUN npm run build
+
+# Этап 2: Продакшн (Nginx)
+FROM nginx:stable-alpine as production-stage
+
+# Копируем собранные файлы из этапа сборки в папку Nginx
+COPY --from=build-stage /app/dist /usr/share/nginx/html
+
+# Копируем конфиг nginx (создадим его ниже, это важно для Vue Router)
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
