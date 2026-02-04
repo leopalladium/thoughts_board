@@ -74,11 +74,15 @@ origins = [
     "https://api.klimentsi.live", # Ваш домен бэкенда
 ]
 
+origins = [
+    "https://klimentsi.live",      # Домен фронтенда
+    "https://www.klimentsi.live",  # На всякий случай с www
+    "http://localhost:5173",       # Для локальной разработки (Vite)
+]
+
 app.add_middleware(
     CORSMiddleware,
-    # TODO: вернуть origins
-    # allow_origins=origins,
-    allow_origins=["*"],
+    allow_origins=origins,       # <--- Используйте список origins вместо ["*"]
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
